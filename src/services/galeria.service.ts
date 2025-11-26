@@ -11,6 +11,7 @@ export interface Galeria {
   nome_operacao?: string | null;
   data_operacao?: string | null;
   categoria?: string | null;
+  album?: string | null;
   createdAt?: string;
   jogo?: {
     id: string;
@@ -24,11 +25,12 @@ export const galeriaService = {
   /**
    * Lista todas as imagens
    */
-  list: async (jogo_id?: string, categoria?: string, is_operacao?: boolean, limit?: number): Promise<{ success: boolean; data: Galeria[] }> => {
+  list: async (jogo_id?: string, categoria?: string, is_operacao?: boolean, album?: string, limit?: number): Promise<{ success: boolean; data: Galeria[] }> => {
     const params = new URLSearchParams();
     if (jogo_id) params.append('jogo_id', jogo_id);
     if (categoria) params.append('categoria', categoria);
     if (is_operacao !== undefined) params.append('is_operacao', is_operacao.toString());
+    if (album) params.append('album', album);
     if (limit) params.append('limit', limit.toString());
     return api.get(`/api/galeria?${params.toString()}`);
   },
@@ -46,6 +48,7 @@ export const galeriaService = {
       is_operacao?: boolean;
       nome_operacao?: string;
       data_operacao?: string;
+      album?: string;
     }
   ): Promise<{ success: boolean; data: Galeria }> => {
     const formData = new FormData();
@@ -58,6 +61,7 @@ export const galeriaService = {
     if (data.is_operacao !== undefined) formData.append('is_operacao', data.is_operacao.toString());
     if (data.nome_operacao) formData.append('nome_operacao', data.nome_operacao);
     if (data.data_operacao) formData.append('data_operacao', data.data_operacao);
+    if (data.album) formData.append('album', data.album);
 
     return api.post('/api/galeria', formData, {
       headers: {

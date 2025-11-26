@@ -7,6 +7,7 @@ import { Calendar } from './components/CalendarSection';
 import { MembersSection } from './components/MembersSection';
 import { GallerySection } from './components/GallerySection';
 import { RecruitmentSection } from './components/RecruitmentSection';
+import { RecruitmentAdminSection } from './components/RecruitmentAdminSection';
 // import { RankingSection } from './components/RankingSection';
 // import { HistoricoSection } from './components/HistoricoSection';
 // import { ArsenalSection } from './components/ArsenalSection';
@@ -23,6 +24,17 @@ import { Toaster } from './components/ui/sonner';
 
 export default function App() {
   const [activeSection, setActiveSection] = useState('inicio');
+
+  // Listener para mudança de seção via evento customizado
+  React.useEffect(() => {
+    const handleSectionChange = (e: CustomEvent) => {
+      setActiveSection(e.detail);
+    };
+    window.addEventListener('changeSection' as any, handleSectionChange as EventListener);
+    return () => {
+      window.removeEventListener('changeSection' as any, handleSectionChange as EventListener);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
@@ -45,6 +57,7 @@ export default function App() {
       {activeSection === 'parceiros' && <ParceirosSection />}
       {/* {activeSection === 'mapa' && <MapaSection />} */}
       {activeSection === 'recrutamento' && <RecruitmentSection />}
+      {activeSection === 'recrutamento-admin' && <RecruitmentAdminSection />}
       {activeSection === 'configuracoes' && <ConfiguracoesSection />}
 
       <Footer />

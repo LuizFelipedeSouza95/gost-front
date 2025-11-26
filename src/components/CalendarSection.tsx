@@ -63,6 +63,36 @@ export function Calendar() {
     }
   };
 
+  // Função auxiliar para converter jogos em eventos
+  const convertJogosToEvents = (jogos: Jogo[]): Event[] => {
+    return jogos.map((jogo: Jogo) => {
+      // Converter data string (YYYY-MM-DD) para Date sem problemas de timezone
+      let eventDate = new Date();
+      if (jogo.data_jogo) {
+        const dateStr = jogo.data_jogo.split('T')[0]; // Pega apenas YYYY-MM-DD
+        const [year, month, day] = dateStr.split('-').map(Number);
+        eventDate = new Date(year, month - 1, day); // month é 0-indexed
+      }
+      
+      return {
+        id: jogo.id,
+        date: eventDate,
+        title: jogo.nome_jogo,
+        location: jogo.local_jogo || 'Local não informado',
+        time: jogo.hora_inicio && jogo.hora_fim
+          ? `${jogo.hora_inicio} - ${jogo.hora_fim}`
+          : 'Horário não informado',
+        participants: jogo.confirmations?.length || 0,
+        confirmed: jogo.confirmations?.length || 0,
+        declined: 0,
+        pending: 0,
+        type: jogo.tipo_jogo || 'Operação Oficial',
+        confirmationIds: jogo.confirmations || [], // Armazena os IDs para buscar depois
+        status: jogo.status || 'scheduled' // Armazena o status do jogo
+      };
+    });
+  };
+
   const loadJogos = async () => {
     try {
       setLoading(true);
@@ -77,36 +107,58 @@ export function Calendar() {
         ...(cancelledResponse.success && cancelledResponse.data ? cancelledResponse.data : [])
       ];
       
-      if (allJogos.length > 0) {
-        setJogos(allJogos);
-
-        // Converter jogos do backend para o formato de eventos
-        const jogosAsEvents: Event[] = allJogos.map((jogo: Jogo) => {
-          // Converter data string (YYYY-MM-DD) para Date sem problemas de timezone
-          let eventDate = new Date();
-          if (jogo.data_jogo) {
-            const dateStr = jogo.data_jogo.split('T')[0]; // Pega apenas YYYY-MM-DD
-            const [year, month, day] = dateStr.split('-').map(Number);
-            eventDate = new Date(year, month - 1, day); // month é 0-indexed
-          }
+      // Verificar e atualizar automaticamente jogos agendados que já passaram da data
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Zerar horas para comparação apenas de data
+      
+      const jogosToUpdate = allJogos.filter((jogo: Jogo) => {
+        // Apenas jogos agendados que não foram cancelados
+        if (jogo.status !== 'scheduled') return false;
+        
+        // Verificar se a data do jogo já passou
+        if (jogo.data_jogo) {
+          const dateStr = jogo.data_jogo.split('T')[0]; // Pega apenas YYYY-MM-DD
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const jogoDate = new Date(year, month - 1, day);
+          jogoDate.setHours(0, 0, 0, 0);
           
-          return {
-            id: jogo.id,
-            date: eventDate,
-            title: jogo.nome_jogo,
-            location: jogo.local_jogo || 'Local não informado',
-            time: jogo.hora_inicio && jogo.hora_fim
-              ? `${jogo.hora_inicio} - ${jogo.hora_fim}`
-              : 'Horário não informado',
-            participants: jogo.confirmations?.length || 0,
-            confirmed: jogo.confirmations?.length || 0,
-            declined: 0,
-            pending: 0,
-            type: jogo.tipo_jogo || 'Operação Oficial',
-            confirmationIds: jogo.confirmations || [], // Armazena os IDs para buscar depois
-            status: jogo.status || 'scheduled' // Armazena o status do jogo
-          };
-        });
+          // Se a data do jogo é anterior a hoje, precisa ser marcado como concluído
+          return jogoDate < today;
+        }
+        return false;
+      });
+      
+      // Atualizar jogos que passaram da data
+      if (jogosToUpdate.length > 0) {
+        const updatePromises = jogosToUpdate.map((jogo: Jogo) => 
+          jogosService.update(String(jogo.id), { status: 'completed' })
+            .catch((error) => {
+              console.error(`Erro ao atualizar jogo ${jogo.id} para concluído:`, error);
+              return null;
+            })
+        );
+        
+        await Promise.all(updatePromises);
+      }
+      
+      // Buscar todos os jogos novamente (incluindo os atualizados e concluídos)
+      const [finalScheduledResponse, finalCancelledResponse, completedResponse] = await Promise.all([
+        jogosService.list('scheduled'),
+        jogosService.list('cancelled'),
+        jogosService.list('completed')
+      ]);
+      
+      const finalJogos: Jogo[] = [
+        ...(finalScheduledResponse.success && finalScheduledResponse.data ? finalScheduledResponse.data : []),
+        ...(finalCancelledResponse.success && finalCancelledResponse.data ? finalCancelledResponse.data : []),
+        ...(completedResponse.success && completedResponse.data ? completedResponse.data : [])
+      ];
+      
+      if (finalJogos.length > 0) {
+        setJogos(finalJogos);
+        
+        // Converter jogos do backend para o formato de eventos
+        const jogosAsEvents = convertJogosToEvents(finalJogos);
         
         // Ordenar eventos: cancelados por último, depois por data
         jogosAsEvents.sort((a, b) => {
@@ -122,7 +174,7 @@ export function Calendar() {
         // Atualizar userResponses baseado nas confirmações do backend
         if (currentUserId) {
           const newResponses: Record<string | number, 'confirmed' | 'declined' | null> = {};
-          allJogos.forEach((jogo: Jogo) => {
+          finalJogos.forEach((jogo: Jogo) => {
             if (jogo.confirmations?.includes(currentUserId)) {
               newResponses[jogo.id] = 'confirmed';
             }
@@ -479,12 +531,15 @@ export function Calendar() {
             <h2 className="text-2xl text-white mb-4">Próximos Eventos</h2>
             {events.map((event) => {
               const isCancelled = event.status === 'cancelled';
+              const isCompleted = event.status === 'completed';
               return (
                 <Card 
                   key={event.id} 
                   className={`p-4 backdrop-blur-sm transition-colors ${
                     isCancelled 
                       ? 'bg-gray-800/30 border-red-600/30 opacity-75' 
+                      : isCompleted
+                      ? 'bg-gray-800/40 border-green-600/30 opacity-90'
                       : 'bg-gray-800/50 border-amber-600/30 hover:border-amber-500'
                   }`}
                 >
@@ -505,6 +560,11 @@ export function Calendar() {
                             {event.status === 'cancelled' && (
                               <Badge className="bg-red-600/20 text-red-400 border-red-500/50">
                                 Cancelado
+                              </Badge>
+                            )}
+                            {event.status === 'completed' && (
+                              <Badge className="bg-green-600/20 text-green-400 border-green-500/50">
+                                Concluído
                               </Badge>
                             )}
                           </div>
@@ -622,10 +682,14 @@ export function Calendar() {
                         </div>
                       )}
 
-                      {/* Confirm/Decline Buttons - Desabilitados para jogos cancelados */}
+                      {/* Confirm/Decline Buttons - Desabilitados para jogos cancelados e concluídos */}
                       {event.status === 'cancelled' ? (
                         <div className="text-center py-2 text-gray-500 text-sm">
                           Este jogo foi cancelado
+                        </div>
+                      ) : event.status === 'completed' ? (
+                        <div className="text-center py-2 text-gray-500 text-sm">
+                          Este jogo já foi concluído
                         </div>
                       ) : (
                         <div className="flex gap-2">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, ChevronLeft, ChevronRight, Calendar, MapPin, Plus, Trash2, Upload, Loader2 } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Calendar, MapPin, Plus, Trash2, Upload, Loader2, Folder } from 'lucide-react';
 import { galeriaService, Galeria } from '../services/galeria.service';
+import { jogosService, Jogo } from '../services/jogos.service';
 import { getUserInfo } from '../utils/auth';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
@@ -11,12 +12,16 @@ export function GallerySection() {
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<number | null>(null);
   const [activeFilter, setActiveFilter] = useState('Todos');
+  const [activeAlbum, setActiveAlbum] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const filters = ['Todos', 'Operação', 'Treinamento', 'Equipamento'];
+  
+  // Extrair álbuns únicos das imagens
+  const albums = Array.from(new Set(images.map(img => img.album).filter(Boolean) as string[])).sort();
 
   useEffect(() => {
     checkAdmin();
@@ -54,9 +59,13 @@ export function GallerySection() {
     return 'Equipamento';
   };
 
-  const filteredImages = activeFilter === 'Todos'
-    ? images
-    : images.filter(img => getCategoryFromImage(img) === activeFilter);
+  const filteredImages = images.filter(img => {
+    // Filtro por categoria
+    const categoryMatch = activeFilter === 'Todos' || getCategoryFromImage(img) === activeFilter;
+    // Filtro por álbum
+    const albumMatch = !activeAlbum || img.album === activeAlbum;
+    return categoryMatch && albumMatch;
+  });
 
   const openLightbox = (index: number) => {
     setSelectedImage(index);
@@ -140,20 +149,56 @@ export function GallerySection() {
         )}
 
         {/* Filters */}
-        <div className="flex justify-center gap-4 mb-8 flex-wrap">
-          {filters.map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              className={`px-6 py-2 rounded-lg transition-all ${
-                activeFilter === filter
-                  ? 'bg-amber-600 text-white'
-                  : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700 border border-gray-700'
-              }`}
-            >
-              {filter}
-            </button>
-          ))}
+        <div className="space-y-4 mb-8">
+          <div className="flex justify-center gap-4 flex-wrap">
+            {filters.map((filter) => (
+              <button
+                key={filter}
+                onClick={() => {
+                  setActiveFilter(filter);
+                  setActiveAlbum(null); // Reset album filter when changing category
+                }}
+                className={`px-6 py-2 rounded-lg transition-all ${
+                  activeFilter === filter
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700 border border-gray-700'
+                }`}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
+          
+          {/* Album Filter */}
+          {albums.length > 0 && (
+            <div className="flex justify-center gap-2 flex-wrap">
+              <button
+                onClick={() => setActiveAlbum(null)}
+                className={`px-4 py-2 rounded-lg transition-all text-sm flex items-center gap-2 ${
+                  !activeAlbum
+                    ? 'bg-gray-700 text-white'
+                    : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700 border border-gray-700'
+                }`}
+              >
+                <Folder className="w-4 h-4" />
+                Todos os Álbuns
+              </button>
+              {albums.map((album) => (
+                <button
+                  key={album}
+                  onClick={() => setActiveAlbum(album)}
+                  className={`px-4 py-2 rounded-lg transition-all text-sm flex items-center gap-2 ${
+                    activeAlbum === album
+                      ? 'bg-amber-600 text-white'
+                      : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700 border border-gray-700'
+                  }`}
+                >
+                  <Folder className="w-4 h-4" />
+                  {album}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Gallery Grid ou Mensagem vazia */}
@@ -197,6 +242,12 @@ export function GallerySection() {
                       <p className="text-sm text-gray-300 mb-2 line-clamp-2">{image.descricao}</p>
                     )}
                     <div className="flex items-center gap-4 text-sm text-gray-300 flex-wrap">
+                      {image.album && (
+                        <div className="flex items-center gap-1">
+                          <Folder className="w-4 h-4" />
+                          <span className="truncate max-w-[150px]">{image.album}</span>
+                        </div>
+                      )}
                       {image.data_operacao && (
                         <div className="flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
@@ -279,6 +330,12 @@ export function GallerySection() {
                   <p className="text-gray-300 mb-4">{filteredImages[selectedImage].descricao}</p>
                 )}
                 <div className="flex items-center justify-center gap-6 text-gray-300 flex-wrap">
+                  {filteredImages[selectedImage].album && (
+                    <div className="flex items-center gap-2">
+                      <Folder className="w-4 h-4" />
+                      <span>{filteredImages[selectedImage].album}</span>
+                    </div>
+                  )}
                   {filteredImages[selectedImage].data_operacao && (
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4" />
@@ -305,6 +362,7 @@ export function GallerySection() {
               setShowUploadModal(false);
               loadImages();
             }}
+            existingAlbums={albums}
           />
         )}
       </div>
@@ -313,13 +371,85 @@ export function GallerySection() {
 }
 
 // Componente de Modal para Upload
-function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+function UploadModal({ 
+  onClose, 
+  onSuccess,
+  existingAlbums = []
+}: { 
+  onClose: () => void; 
+  onSuccess: () => void;
+  existingAlbums?: string[];
+}) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [titulo, setTitulo] = useState('');
   const [descricao, setDescricao] = useState('');
   const [categoria, setCategoria] = useState('Operação');
+  const [album, setAlbum] = useState('');
+  const [newAlbum, setNewAlbum] = useState('');
+  const [useNewAlbum, setUseNewAlbum] = useState(existingAlbums.length === 0);
+  const [jogoId, setJogoId] = useState<string>('');
+  const [jogos, setJogos] = useState<Jogo[]>([]);
+  const [loadingJogos, setLoadingJogos] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    if (categoria === 'Treinamento') {
+      loadAvailableJogos();
+    }
+  }, [categoria]);
+
+  useEffect(() => {
+    // Se não há álbuns existentes, forçar criação de novo
+    if (existingAlbums.length === 0) {
+      setUseNewAlbum(true);
+    }
+  }, [existingAlbums.length]);
+
+  const loadAvailableJogos = async () => {
+    try {
+      setLoadingJogos(true);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Buscar jogos scheduled e completed
+      const [scheduledResponse, completedResponse] = await Promise.all([
+        jogosService.list('scheduled'),
+        jogosService.list('completed')
+      ]);
+
+      const allJogos: Jogo[] = [
+        ...(scheduledResponse.success && scheduledResponse.data ? scheduledResponse.data : []),
+        ...(completedResponse.success && completedResponse.data ? completedResponse.data : [])
+      ];
+
+      // Filtrar apenas jogos que já passaram ou são hoje
+      const availableJogos = allJogos.filter((jogo: Jogo) => {
+        if (!jogo.data_jogo) return false;
+        
+        const dateStr = jogo.data_jogo.split('T')[0];
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const jogoDate = new Date(year, month - 1, day);
+        jogoDate.setHours(0, 0, 0, 0);
+        
+        // Incluir apenas jogos de hoje ou passados (não cancelados)
+        return jogoDate <= today && jogo.status !== 'cancelled';
+      });
+
+      // Ordenar por data (mais recente primeiro)
+      availableJogos.sort((a, b) => {
+        if (!a.data_jogo || !b.data_jogo) return 0;
+        return new Date(b.data_jogo).getTime() - new Date(a.data_jogo).getTime();
+      });
+
+      setJogos(availableJogos);
+    } catch (error: any) {
+      console.error('Erro ao carregar jogos:', error);
+      toast.error('Erro ao carregar jogos disponíveis');
+    } finally {
+      setLoadingJogos(false);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -348,6 +478,19 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
       return;
     }
 
+    // Validação para Treinamento
+    if (categoria === 'Treinamento' && !jogoId) {
+      toast.error('Por favor, selecione um treinamento do calendário');
+      return;
+    }
+
+    // Validação para álbum (obrigatório)
+    const finalAlbum = useNewAlbum ? newAlbum.trim() : album;
+    if (!finalAlbum) {
+      toast.error('Por favor, informe ou selecione um álbum');
+      return;
+    }
+
     try {
       setUploading(true);
       await galeriaService.create(file, {
@@ -355,6 +498,8 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
         descricao: descricao || undefined,
         categoria: categoria || undefined,
         is_operacao: categoria === 'Operação',
+        jogo_id: categoria === 'Treinamento' ? jogoId : undefined,
+        album: finalAlbum || undefined,
       });
       toast.success('Foto adicionada com sucesso!');
       onSuccess();
@@ -438,13 +583,122 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
               <label className="block text-sm text-gray-400 mb-2">Categoria</label>
               <select
                 value={categoria}
-                onChange={(e) => setCategoria(e.target.value)}
+                onChange={(e) => {
+                  setCategoria(e.target.value);
+                  setJogoId(''); // Reset jogo selection when changing category
+                }}
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
               >
                 <option value="Operação">Operação</option>
                 <option value="Treinamento">Treinamento</option>
                 <option value="Equipamento">Equipamento</option>
               </select>
+            </div>
+
+            {/* Seleção de Treinamento */}
+            {categoria === 'Treinamento' && (
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">
+                  Treinamento do Calendário *
+                </label>
+                {loadingJogos ? (
+                  <div className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-400 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Carregando treinamentos...
+                  </div>
+                ) : jogos.length === 0 ? (
+                  <div className="w-full px-3 py-2 bg-gray-800 border border-red-700 rounded-lg text-red-400">
+                    Nenhum treinamento disponível. Apenas treinamentos do dia ou anteriores podem ser selecionados.
+                  </div>
+                ) : (
+                  <select
+                    value={jogoId}
+                    onChange={(e) => setJogoId(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                    required
+                  >
+                    <option value="">Selecione um treinamento</option>
+                    {jogos.map((jogo) => {
+                      const dateStr = jogo.data_jogo ? jogo.data_jogo.split('T')[0] : '';
+                      const [year, month, day] = dateStr ? dateStr.split('-').map(Number) : [0, 0, 0];
+                      const jogoDate = dateStr ? new Date(year, month - 1, day) : null;
+                      const formattedDate = jogoDate ? jogoDate.toLocaleDateString('pt-BR') : 'Sem data';
+                      
+                      return (
+                        <option key={jogo.id} value={jogo.id}>
+                          {jogo.nome_jogo} - {formattedDate}
+                          {jogo.status === 'completed' ? ' (Concluído)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
+              </div>
+            )}
+
+            {/* Seleção de Álbum */}
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Álbum *</label>
+              <div className="space-y-3">
+                {existingAlbums.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        id="existing-album"
+                        checked={!useNewAlbum}
+                        onChange={() => {
+                          setUseNewAlbum(false);
+                          setNewAlbum('');
+                        }}
+                        className="w-4 h-4 text-amber-600"
+                      />
+                      <label htmlFor="existing-album" className="text-gray-300">
+                        Selecionar álbum existente
+                      </label>
+                    </div>
+                    {!useNewAlbum && (
+                      <select
+                        value={album}
+                        onChange={(e) => setAlbum(e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                      >
+                        <option value="">Selecione um álbum</option>
+                        {existingAlbums.map((alb) => (
+                          <option key={alb} value={alb}>
+                            {alb}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    id="new-album"
+                    checked={useNewAlbum || existingAlbums.length === 0}
+                    onChange={() => {
+                      setUseNewAlbum(true);
+                      setAlbum('');
+                    }}
+                    className="w-4 h-4 text-amber-600"
+                  />
+                  <label htmlFor="new-album" className="text-gray-300">
+                    {existingAlbums.length === 0 ? 'Criar álbum (nenhum álbum existente)' : 'Criar novo álbum'}
+                  </label>
+                </div>
+                {(useNewAlbum || existingAlbums.length === 0) && (
+                  <input
+                    type="text"
+                    value={newAlbum}
+                    onChange={(e) => setNewAlbum(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                    placeholder="Nome do novo álbum"
+                  />
+                )}
+              </div>
             </div>
 
             <div className="flex gap-3 pt-4">

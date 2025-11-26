@@ -39,8 +39,10 @@ export function MembersSection() {
       setLoading(true);
       const response = await usuariosService.list(1, 100);
       if (response.success && response.data) {
-        // Filtrar apenas membros ativos
-        const membrosAtivos = response.data.filter(u => u.active);
+        // Filtrar apenas membros ativos que foram cadastrados como membros oficiais pelos admins
+        const membrosAtivos = response.data.filter(u => 
+          u.active && u.roles?.includes('membro_oficial')
+        );
         setUsuarios(membrosAtivos);
       }
     } catch (error: any) {
@@ -86,7 +88,7 @@ export function MembersSection() {
         };
       case 'soldado':
         return {
-          rank: 'Soldados',
+          rank: 'Operadores',
           icon: UsersIcon,
           color: 'text-green-500',
           bgColor: 'bg-green-600/20',

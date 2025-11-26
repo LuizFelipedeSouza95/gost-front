@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card';
 import { getUserInfo, clearUserCache } from '../utils/auth';
-import { ENV_CONFIG } from '../services/environment';
+import { getBackendUrl } from '../config/urls';
 
 interface LoginProps {
     setActiveSection?: (section: string) => void;
@@ -54,9 +54,9 @@ export function Login({ setActiveSection }: LoginProps) {
         
         setIsLoading(true);
         try {
-            // Usa a URL da API configurada no ambiente
-            const apiBaseUrl = ENV_CONFIG.internalApiUrl;
-            const authUrl = `${apiBaseUrl}/api/auth/google`;
+            // Usa a URL do backend da configuração centralizada
+            const backendUrl = getBackendUrl();
+            const authUrl = `${backendUrl}/api/auth/google`;
             
             // Redireciona para a rota de autenticação Google do backend
             window.location.href = authUrl;

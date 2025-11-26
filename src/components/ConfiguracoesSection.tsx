@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UsersRound, Building2, Shield, Edit, Trash2, Plus, Save, X, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, UsersRound, Building2, Shield, Edit, Trash2, Plus, Save, X, FileText, ChevronDown, ChevronUp, UserPlus } from 'lucide-react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -209,6 +209,10 @@ export function ConfiguracoesSection() {
             <TabsTrigger value="estatuto" className="flex-1">
               <FileText className="w-4 h-4 mr-2" />
               Estatuto
+            </TabsTrigger>
+            <TabsTrigger value="recrutamento" className="flex-1">
+              <Shield className="w-4 h-4 mr-2" />
+              Recrutamentos
             </TabsTrigger>
           </TabsList>
 
@@ -505,6 +509,34 @@ export function ConfiguracoesSection() {
                   </Button>
                 </div>
               )}
+            </Card>
+          </TabsContent>
+
+          {/* Gestão de Recrutamentos */}
+          <TabsContent value="recrutamento">
+            <Card className="p-6 bg-gray-800/50 border-amber-600/30">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl text-white">Gestão de Recrutamentos</h2>
+              </div>
+              <p className="text-gray-400 mb-4">
+                Gerencie os processos de recrutamento, etapas e votações.
+              </p>
+              <div className="space-y-4">
+                <p className="text-gray-300">
+                  Acesse a página de gerenciamento de recrutamentos para visualizar candidatos, 
+                  gerenciar etapas do processo, atribuir responsáveis e registrar votos.
+                </p>
+                <Button
+                  onClick={() => {
+                    // Dispara evento customizado para mudar a seção
+                    window.dispatchEvent(new CustomEvent('changeSection', { detail: 'recrutamento-admin' }));
+                  }}
+                  className="bg-amber-600 hover:bg-amber-700"
+                >
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Abrir Gerenciamento de Recrutamentos
+                </Button>
+              </div>
             </Card>
           </TabsContent>
         </Tabs>

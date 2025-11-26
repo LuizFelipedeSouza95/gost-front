@@ -191,6 +191,54 @@ export function TopicSection() {
     return iconMap[iconName] || Shield;
   };
 
+  // Função para detectar URLs no texto e transformá-las em links clicáveis
+  const renderTextWithLinks = (text: string): React.ReactNode => {
+    if (!text) return null;
+
+    // Regex para detectar URLs (http://, https://, www., ou URLs sem protocolo)
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)/gi;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = urlRegex.exec(text)) !== null) {
+      // Adiciona o texto antes da URL
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+
+      // Prepara a URL para o link
+      let url = match[0];
+      // Se não começar com http:// ou https://, adiciona https://
+      if (!url.match(/^https?:\/\//i)) {
+        url = `https://${url}`;
+      }
+
+      // Adiciona o link clicável
+      parts.push(
+        <a
+          key={match.index}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-amber-400 hover:text-amber-300 underline transition-colors"
+        >
+          {match[0]}
+        </a>
+      );
+
+      lastIndex = urlRegex.lastIndex;
+    }
+
+    // Adiciona o texto restante após a última URL
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+
+    // Se não encontrou URLs, retorna o texto normal
+    return parts.length > 0 ? <>{parts}</> : text;
+  };
+
   if (loading) {
     return (
       <div className="pt-24 pb-16 px-4 min-h-screen">
@@ -246,11 +294,11 @@ export function TopicSection() {
                             </div>
                           )}
                           {item.text && (
-                            <p className="py-1 leading-relaxed">• {item.text}</p>
+                            <p className="py-1 leading-relaxed">• {renderTextWithLinks(item.text)}</p>
                           )}
                           {item.label && (
                             <p className="py-1 leading-relaxed">
-                              <span className="text-amber-400">{item.label}:</span> {item.text}
+                              <span className="text-amber-400">{item.label}:</span> {renderTextWithLinks(item.text || '')}
                             </p>
                           )}
                         </div>
