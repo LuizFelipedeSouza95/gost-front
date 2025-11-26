@@ -5,22 +5,43 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { ENV_CONFIG } from './environment';
 
-// Força localhost em desenvolvimento local
+// Obtém a URL do backend baseado no ambiente
 const getBackendUrl = (): string => {
+  // Se a URL estiver configurada via variável de ambiente, usa ela (prioridade máxima)
+  if (ENV_CONFIG.internalApiUrl && ENV_CONFIG.internalApiUrl !== 'http://localhost:3001') {
+    return ENV_CONFIG.internalApiUrl;
+  }
+  
+  // Em desenvolvimento (modo DEV do Vite)
   if ((import.meta as any).env?.DEV) {
     // Se estiver rodando em localhost, força localhost para o backend
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      return ENV_CONFIG.internalApiUrl;
+      return 'http://localhost:3001';
     }
     
-    // Se estiver na rede, usa o IP da rede
+    // Se estiver na rede local, usa o IP da rede
     const networkIP = window.location.hostname;
     return `http://${networkIP}:3001`;
   }
   
-  // Em produção, usa a URL configurada
-  const productionUrl = ENV_CONFIG.internalApiUrl || 'https://api.gosttactical.com.br';
-  return productionUrl;
+  // Em produção, usa a URL configurada ou padrão
+  // Se não estiver configurado, tenta inferir da URL atual do frontend
+  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    // Em produção, assume que a API está no mesmo domínio ou subdomínio api.
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    
+    // Se o frontend está em www.gosttactical.com.br, a API pode estar em api.gosttactical.com.br
+    if (hostname.startsWith('www.')) {
+      return `${protocol}//api.${hostname.replace('www.', '')}`;
+    }
+    
+    // Caso contrário, usa a URL configurada ou padrão
+    return ENV_CONFIG.internalApiUrl || 'https://api.gosttactical.com.br';
+  }
+  
+  // Fallback para desenvolvimento
+  return ENV_CONFIG.internalApiUrl || 'http://localhost:3001';
 };
 
 // Log da URL do backend para debug

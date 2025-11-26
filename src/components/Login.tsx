@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card';
 import { getUserInfo, clearUserCache } from '../utils/auth';
-
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3001';
+import { ENV_CONFIG } from '../services/environment';
 
 interface LoginProps {
     setActiveSection?: (section: string) => void;
@@ -53,13 +52,11 @@ export function Login({ setActiveSection }: LoginProps) {
         e?.preventDefault();
         e?.stopPropagation();
         
-        // console.log('handleGoogleLogin chamado');
-        // console.log('API_BASE_URL:', API_BASE_URL);
-        
         setIsLoading(true);
         try {
-            const authUrl = `${API_BASE_URL}/api/auth/google`;
-            // console.log('Redirecionando para:', authUrl);
+            // Usa a URL da API configurada no ambiente
+            const apiBaseUrl = ENV_CONFIG.internalApiUrl;
+            const authUrl = `${apiBaseUrl}/api/auth/google`;
             
             // Redireciona para a rota de autenticação Google do backend
             window.location.href = authUrl;
