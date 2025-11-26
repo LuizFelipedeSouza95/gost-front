@@ -191,52 +191,69 @@ export function TopicSection() {
     return iconMap[iconName] || Shield;
   };
 
-  // Função para detectar URLs no texto e transformá-las em links clicáveis
+  // Função para detectar URLs e quebras de linha no texto
   const renderTextWithLinks = (text: string): React.ReactNode => {
     if (!text) return null;
 
-    // Regex para detectar URLs (http://, https://, www., ou URLs sem protocolo)
-    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)/gi;
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-    let match;
+    // Divide o texto por quebras de linha (\n ou \r\n)
+    const lines = text.split(/\r?\n/);
 
-    while ((match = urlRegex.exec(text)) !== null) {
-      // Adiciona o texto antes da URL
-      if (match.index > lastIndex) {
-        parts.push(text.substring(lastIndex, match.index));
-      }
+    return (
+      <>
+        {lines.map((line, lineIndex) => {
+          // Processa URLs em cada linha
+          const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)/gi;
+          const parts: React.ReactNode[] = [];
+          let lastIndex = 0;
+          let match;
 
-      // Prepara a URL para o link
-      let url = match[0];
-      // Se não começar com http:// ou https://, adiciona https://
-      if (!url.match(/^https?:\/\//i)) {
-        url = `https://${url}`;
-      }
+          while ((match = urlRegex.exec(line)) !== null) {
+            // Adiciona o texto antes da URL
+            if (match.index > lastIndex) {
+              parts.push(line.substring(lastIndex, match.index));
+            }
 
-      // Adiciona o link clicável
-      parts.push(
-        <a
-          key={match.index}
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-amber-400 hover:text-amber-300 underline transition-colors"
-        >
-          {match[0]}
-        </a>
-      );
+            // Prepara a URL para o link
+            let url = match[0];
+            // Se não começar com http:// ou https://, adiciona https://
+            if (!url.match(/^https?:\/\//i)) {
+              url = `https://${url}`;
+            }
 
-      lastIndex = urlRegex.lastIndex;
-    }
+            // Adiciona o link clicável
+            parts.push(
+              <a
+                key={`${lineIndex}-${match.index}`}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 underline transition-colors"
+              >
+                {match[0]}
+              </a>
+            );
 
-    // Adiciona o texto restante após a última URL
-    if (lastIndex < text.length) {
-      parts.push(text.substring(lastIndex));
-    }
+            lastIndex = urlRegex.lastIndex;
+          }
 
-    // Se não encontrou URLs, retorna o texto normal
-    return parts.length > 0 ? <>{parts}</> : text;
+          // Adiciona o texto restante após a última URL
+          if (lastIndex < line.length) {
+            parts.push(line.substring(lastIndex));
+          }
+
+          // Se não encontrou URLs, usa o texto da linha completo
+          const lineContent = parts.length > 0 ? <>{parts}</> : line;
+
+          // Renderiza a linha com quebra de linha após (exceto na última linha)
+          return (
+            <React.Fragment key={lineIndex}>
+              {lineContent}
+              {lineIndex < lines.length - 1 && <br />}
+            </React.Fragment>
+          );
+        })}
+      </>
+    );
   };
 
   if (loading) {

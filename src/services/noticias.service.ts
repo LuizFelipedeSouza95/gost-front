@@ -8,6 +8,7 @@ export interface Noticia {
   imagem_url?: string | null;
   autor_nome?: string | null;
   publicado: boolean;
+  destaque?: boolean;
   data_publicacao?: string | null;
   categoria?: string | null;
   visualizacoes: number;
@@ -38,6 +39,20 @@ export const noticiasService = {
    */
   create: async (data: Partial<Noticia>): Promise<{ success: boolean; data: Noticia }> => {
     return api.post('/api/noticias', data, { requireAuth: true });
+  },
+
+  /**
+   * Atualiza uma notícia existente
+   */
+  update: async (id: string, data: Partial<Noticia>): Promise<{ success: boolean; data: Noticia }> => {
+    return api.put(`/api/noticias/${id}`, data, { requireAuth: true });
+  },
+
+  /**
+   * Deleta uma notícia
+   */
+  delete: async (id: string): Promise<{ success: boolean; message?: string }> => {
+    return api.delete(`/api/noticias/${id}`, { requireAuth: true });
   },
 };
 

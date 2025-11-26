@@ -34,16 +34,28 @@ export async function getUserInfo(): Promise<UserInfo | null> {
   }
 
   try {
+    console.log('🔍 Verificando autenticação em /api/auth/me...');
+    console.log('🍪 Cookies disponíveis:', document.cookie);
+    console.log('🌐 URL do backend:', import.meta.env.VITE_API_BASE_URL || 'https://api.gosttactical.com.br');
+    
     const data = await api.get<{ success: boolean; user?: UserInfo }>('/api/auth/me');
+    console.log('📥 Resposta de /api/auth/me:', data);
     if (data.success && data.user) {
+      console.log('✅ Usuário autenticado:', data.user);
       userCache = data.user;
       lastCheck = Date.now();
       return data.user;
     }
+    console.warn('⚠️ Usuário não autenticado - resposta:', data);
     userCache = null;
     return null;
-  } catch (error) {
-    console.error('Erro ao obter dados do usuário:', error);
+  } catch (error: any) {
+    console.error('❌ Erro ao obter dados do usuário:', {
+      message: error?.message,
+      status: error?.response?.status,
+      data: error?.response?.data,
+      cookies: document.cookie,
+    });
     return null;
   }
 }

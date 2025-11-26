@@ -26,6 +26,7 @@ export function Hero({ setActiveSection }: HeroProps) {
 
     loadEquipeInfo();
   }, []);
+
   const features = [
     {
       icon: FileText,
@@ -60,18 +61,19 @@ export function Hero({ setActiveSection }: HeroProps) {
   ];
 
   return (
-    <div className="pt-16">
+    <div className="pt-10">
       {/* Hero Section */}
       <section className="relative py-20 px-4 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-amber-600/10 to-transparent"></div>
 
         <div className="max-w-7xl mx-auto relative">
-          <div className="text-center mb-16">
-            <div className="flex justify-center mb-6">
-              <img 
-                src={equipeInfo?.logo_url || "/path_gost.svg"} 
-                alt={equipeInfo?.nome || "imagem da equipe"} 
-                className="w-20 h-20"
+          <div className="text-center mb-12">
+            <div className="flex justify-center">
+              <img
+                src={equipeInfo?.logo_url || "/path_gost.svg"}
+                alt={equipeInfo?.nome || "imagem da equipe"}
+                className="w-40 h-40 sm:w-50 sm:h-50 object-contain"
+                style={{ maxWidth: '300px', maxHeight: '300px' }}
                 onError={(e) => {
                   const img = e.currentTarget as HTMLImageElement;
                   if (!img.src.endsWith("/path_gost.svg")) {
@@ -82,7 +84,7 @@ export function Hero({ setActiveSection }: HeroProps) {
             </div>
             {loading ? (
               <div className="animate-pulse">
-                <div className="h-16 bg-gray-700 rounded w-64 mx-auto mb-4"></div>
+                <div className="h-24 bg-gray-700 rounded w-64 mx-auto mb-4"></div>
                 <div className="h-6 bg-gray-700 rounded w-96 mx-auto mb-2"></div>
                 <div className="h-4 bg-gray-700 rounded w-full max-w-2xl mx-auto"></div>
               </div>

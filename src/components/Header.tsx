@@ -34,10 +34,10 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
   const moreMenuItems = [
     { id: 'galeria', label: 'Galeria' },
     { id: 'noticias', label: 'Notícias' },
-    { id: 'faq', label: 'FAQ' },
+    // { id: 'faq', label: 'FAQ' },
     // { id: 'treinamento', label: 'Treinamento' },
     { id: 'parceiros', label: 'Parceiros' },
-    { id: 'mapa', label: 'Mapa' },
+    // { id: 'mapa', label: 'Mapa' },
     { id: 'recrutamento', label: 'Recrutamento' },
   ];
 
@@ -167,8 +167,8 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveSection('inicio')}>
-              <img src="/path_gost.svg" alt="GOST" className="w-10 h-10 text-amber-500" />
+            <div className="flex items-center cursor-pointer" onClick={() => setActiveSection('inicio')}>
+              <img src="/path_gost.svg" alt="GOST" className="w-16 h-16 text-amber-500" />
               <div>
                 <h1 className="text-amber-500 tracking-wider">GOST</h1>
                 <p className="text-xs text-gray-400">Airsoft Team</p>

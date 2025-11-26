@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UsersRound, Building2, Shield, Edit, Trash2, Plus, Save, X, FileText, ChevronDown, ChevronUp, UserPlus } from 'lucide-react';
+import { Users, UsersRound, Building2, Shield, Edit, Trash2, Plus, Save, X, FileText, ChevronDown, ChevronUp, UserPlus, Newspaper, Loader2, Calendar, User, Tag, Handshake, Mail, Phone } from 'lucide-react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -9,6 +9,8 @@ import { usuariosService, type Usuario } from '../services/usuarios.service';
 import { squadsService, type Squad, type SquadCreateUpdateData } from '../services/squads.service';
 import { equipeService, type EquipeInfo } from '../services/equipe.service';
 import { estatutoService, type EstatutoInfo, type EstatutoTopic } from '../services/estatuto.service';
+import { noticiasService, type Noticia } from '../services/noticias.service';
+import { parceirosService, type Parceiro } from '../services/parceiros.service';
 import { getUserInfo } from '../utils/auth';
 
 export function ConfiguracoesSection() {
@@ -21,7 +23,13 @@ export function ConfiguracoesSection() {
     significado_nome: null,
     objetivo: 'Operações Especiais de Airsoft',
     data_criacao: '2020-01-01',
-    descricao: 'Ghost Operations Special Team'
+    descricao: 'Ghost Operations Special Team',
+    logo_url: null,
+    email: null,
+    telefone: null,
+    endereco: null,
+    cidade: null,
+    estado: null,
   });
   const [loading, setLoading] = useState(true);
   const [editingUsuario, setEditingUsuario] = useState<string | null>(null);
@@ -31,11 +39,32 @@ export function ConfiguracoesSection() {
   const [editingEquipe, setEditingEquipe] = useState(false);
   const [estatuto, setEstatuto] = useState<EstatutoInfo | null>(null);
   const [editingEstatuto, setEditingEstatuto] = useState(false);
+  const [equipeEmail, setEquipeEmail] = useState('');
+  const [equipeWhatsapp, setEquipeWhatsapp] = useState('');
+  const [editingContatoEquipe, setEditingContatoEquipe] = useState(false);
 
   useEffect(() => {
     checkAdmin();
     loadData();
+    loadContatoEquipe();
   }, []);
+
+  const loadContatoEquipe = () => {
+    // Carrega email e WhatsApp da equipe do localStorage
+    const email = localStorage.getItem('equipe_email') || '';
+    const whatsapp = localStorage.getItem('equipe_whatsapp') || '';
+    setEquipeEmail(email);
+    setEquipeWhatsapp(whatsapp);
+  };
+
+  const saveContatoEquipe = (email: string, whatsapp: string) => {
+    localStorage.setItem('equipe_email', email);
+    localStorage.setItem('equipe_whatsapp', whatsapp);
+    setEquipeEmail(email);
+    setEquipeWhatsapp(whatsapp);
+    setEditingContatoEquipe(false);
+    toast.success('Contatos da equipe salvos com sucesso!');
+  };
 
   const checkAdmin = async () => {
     try {
@@ -193,28 +222,46 @@ export function ConfiguracoesSection() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          <TabsList className="flex flex-col sm:flex-row w-full max-w-2xl mx-auto gap-2 sm:gap-3 bg-gray-800/80 backdrop-blur-sm border-2 border-amber-600/30 rounded-xl p-2 shadow-lg">
-            <TabsTrigger value="usuarios" className="flex-1">
-              <Users className="w-4 h-4 mr-2" />
-              Usuários
-            </TabsTrigger>
-            <TabsTrigger value="squads" className="flex-1">
-              <UsersRound className="w-4 h-4 mr-2" />
-              Squads
-            </TabsTrigger>
-            <TabsTrigger value="equipe" className="flex-1">
-              <Building2 className="w-4 h-4 mr-2" />
-              Equipe
-            </TabsTrigger>
-            <TabsTrigger value="estatuto" className="flex-1">
-              <FileText className="w-4 h-4 mr-2" />
-              Estatuto
-            </TabsTrigger>
-            <TabsTrigger value="recrutamento" className="flex-1">
-              <Shield className="w-4 h-4 mr-2" />
-              Recrutamentos
-            </TabsTrigger>
-          </TabsList>
+          <style>{`
+            [data-slot="tabs-trigger"] {
+              color: white !important;
+            }
+            [data-slot="tabs-trigger"][data-state="active"] {
+              color: black !important;
+            }
+          `}</style>
+          <div className="flex justify-center mb-8 h-[56px] overflow-x-auto">
+            <TabsList className="flex flex-col sm:flex-row w-full max-w-4xl mx-auto gap-2 sm:gap-2 bg-gray-800/80 backdrop-blur-sm border-2 border-amber-600/30 rounded-xl shadow-lg h-[56px] p-1 min-w-fit">
+              <TabsTrigger value="usuarios" className="flex-1 min-w-0 sm:min-w-[100px] h-full text-xs sm:text-sm">
+                <Users className="w-4 h-4 sm:w-4 sm:h-5 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="truncate">Usuários</span>
+              </TabsTrigger>
+              <TabsTrigger value="squads" className="flex-1 min-w-0 sm:min-w-[100px] h-full text-xs sm:text-sm">
+                <UsersRound className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="truncate">Squads</span>
+              </TabsTrigger>
+              <TabsTrigger value="equipe" className="flex-1 min-w-0 sm:min-w-[100px] h-full text-xs sm:text-sm">
+                <Building2 className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="truncate">Equipe</span>
+              </TabsTrigger>
+              <TabsTrigger value="estatuto" className="flex-1 min-w-0 sm:min-w-[100px] h-full text-xs sm:text-sm">
+                <FileText className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="truncate">Estatuto</span>
+              </TabsTrigger>
+              <TabsTrigger value="recrutamento" className="flex-1 min-w-0 sm:min-w-[100px] h-full text-xs sm:text-sm">
+                <Shield className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="truncate">Recrutamentos</span>
+              </TabsTrigger>
+              <TabsTrigger value="noticias" className="flex-1 min-w-0 sm:min-w-[100px] h-full text-xs sm:text-sm">
+                <Newspaper className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="truncate">Notícias</span>
+              </TabsTrigger>
+              <TabsTrigger value="parceiros" className="flex-1 min-w-0 sm:min-w-[100px] h-full text-xs sm:text-sm">
+                <Handshake className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="truncate">Parceiros</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Gestão de Usuários */}
           <TabsContent value="usuarios">
@@ -424,18 +471,60 @@ export function ConfiguracoesSection() {
                     <label className="text-sm text-gray-400">Nome da Equipe</label>
                     <p className="text-white text-lg">{equipe.nome}</p>
                   </div>
-                  <div>
-                    <label className="text-sm text-gray-400">Objetivo</label>
-                    <p className="text-white">{equipe.objetivo}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-400">Data de Criação</label>
-                    <p className="text-white">{new Date(equipe.data_criacao).toLocaleDateString('pt-BR')}</p>
-                  </div>
+                  {equipe.significado_nome && (
+                    <div>
+                      <label className="text-sm text-gray-400">Significado do Nome</label>
+                      <p className="text-white">{equipe.significado_nome}</p>
+                    </div>
+                  )}
+                  {equipe.objetivo && (
+                    <div>
+                      <label className="text-sm text-gray-400">Objetivo</label>
+                      <p className="text-white">{equipe.objetivo}</p>
+                    </div>
+                  )}
+                  {equipe.data_criacao && (
+                    <div>
+                      <label className="text-sm text-gray-400">Data de Criação</label>
+                      <p className="text-white">{new Date(equipe.data_criacao).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                  )}
                   {equipe.descricao && (
                     <div>
                       <label className="text-sm text-gray-400">Descrição</label>
                       <p className="text-white">{equipe.descricao}</p>
+                    </div>
+                  )}
+                  {equipe.logo_url && (
+                    <div>
+                      <label className="text-sm text-gray-400">Logo</label>
+                      <img src={equipe.logo_url} alt="Logo da equipe" className="mt-2 max-w-xs rounded" />
+                    </div>
+                  )}
+                  {equipe.email && (
+                    <div>
+                      <label className="text-sm text-gray-400">Email</label>
+                      <p className="text-white">{equipe.email}</p>
+                    </div>
+                  )}
+                  {equipe.telefone && (
+                    <div>
+                      <label className="text-sm text-gray-400">Telefone</label>
+                      <p className="text-white">{equipe.telefone}</p>
+                    </div>
+                  )}
+                  {equipe.endereco && (
+                    <div>
+                      <label className="text-sm text-gray-400">Endereço</label>
+                      <p className="text-white">{equipe.endereco}</p>
+                    </div>
+                  )}
+                  {(equipe.cidade || equipe.estado) && (
+                    <div>
+                      <label className="text-sm text-gray-400">Localização</label>
+                      <p className="text-white">
+                        {[equipe.cidade, equipe.estado].filter(Boolean).join(', ')}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -521,6 +610,55 @@ export function ConfiguracoesSection() {
               <p className="text-gray-400 mb-4">
                 Gerencie os processos de recrutamento, etapas e votações.
               </p>
+              
+              {/* Configuração de Contato da Equipe */}
+              <div className="mb-6 p-4 bg-gray-900/50 rounded-lg border border-gray-700">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg text-white mb-1">Contatos da Equipe</h3>
+                    <p className="text-sm text-gray-400">
+                      Email e WhatsApp usados para notificações de recrutamento
+                    </p>
+                  </div>
+                  {!editingContatoEquipe && (
+                    <Button
+                      onClick={() => setEditingContatoEquipe(true)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Editar
+                    </Button>
+                  )}
+                </div>
+
+                {editingContatoEquipe ? (
+                  <ContatoEquipeForm
+                    email={equipeEmail}
+                    whatsapp={equipeWhatsapp}
+                    onSave={saveContatoEquipe}
+                    onCancel={() => setEditingContatoEquipe(false)}
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 text-gray-300">
+                      <Mail className="w-4 h-4 text-amber-400" />
+                      <span className="text-sm">
+                        <span className="text-gray-400">Email:</span>{' '}
+                        {equipeEmail || <span className="text-gray-500 italic">Não configurado</span>}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-gray-300">
+                      <Phone className="w-4 h-4 text-amber-400" />
+                      <span className="text-sm">
+                        <span className="text-gray-400">WhatsApp:</span>{' '}
+                        {equipeWhatsapp || <span className="text-gray-500 italic">Não configurado</span>}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-4">
                 <p className="text-gray-300">
                   Acesse a página de gerenciamento de recrutamentos para visualizar candidatos, 
@@ -539,8 +677,568 @@ export function ConfiguracoesSection() {
               </div>
             </Card>
           </TabsContent>
+
+          {/* Gestão de Notícias */}
+          <TabsContent value="noticias">
+            <NoticiasManagement />
+          </TabsContent>
+
+          {/* Gestão de Parceiros */}
+          <TabsContent value="parceiros">
+            <ParceirosManagement />
+          </TabsContent>
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+// Componente de Gestão de Notícias
+function NoticiasManagement() {
+  const [noticias, setNoticias] = useState<Noticia[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingNoticia, setEditingNoticia] = useState<Noticia | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    loadNoticias();
+  }, []);
+
+  const loadNoticias = async () => {
+    try {
+      setLoading(true);
+      const response = await noticiasService.list(undefined, undefined);
+      if (response.success) {
+        setNoticias(response.data);
+        // Extrair categorias únicas
+        const uniqueCategories = Array.from(
+          new Set(response.data.map(n => n.categoria).filter(Boolean) as string[])
+        );
+        setCategories(uniqueCategories.sort());
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar notícias:', error);
+      toast.error('Erro ao carregar notícias');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir esta notícia?')) {
+      return;
+    }
+
+    try {
+      setDeletingId(id);
+      const response = await noticiasService.delete(id);
+      if (response.success) {
+        toast.success('Notícia excluída com sucesso!');
+        loadNoticias();
+      }
+    } catch (error: any) {
+      toast.error('Erro ao excluir notícia: ' + (error.message || 'Erro desconhecido'));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleEdit = (noticia: Noticia) => {
+    setEditingNoticia(noticia);
+    setShowEditModal(true);
+  };
+
+  const handleCreate = () => {
+    setEditingNoticia(null);
+    setShowEditModal(true);
+  };
+
+  const formatDate = (dateString?: string | null) => {
+    if (!dateString) return 'Data não informada';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('pt-BR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getCategoryColor = (category?: string | null) => {
+    if (!category) return 'bg-gray-600/20 text-gray-400 border-gray-500/50';
+    switch (category) {
+      case 'Conquistas':
+        return 'bg-yellow-600/20 text-yellow-400 border-yellow-500/50';
+      case 'Treinamento':
+        return 'bg-blue-600/20 text-blue-400 border-blue-500/50';
+      case 'Parcerias':
+        return 'bg-green-600/20 text-green-400 border-green-500/50';
+      case 'Infraestrutura':
+        return 'bg-purple-600/20 text-purple-400 border-purple-500/50';
+      case 'Recrutamento':
+        return 'bg-red-600/20 text-red-400 border-red-500/50';
+      case 'Tutoriais':
+        return 'bg-cyan-600/20 text-cyan-400 border-cyan-500/50';
+      default:
+        return 'bg-gray-600/20 text-gray-400 border-gray-500/50';
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card className="p-6 bg-gray-800/50 border-amber-600/30">
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 text-amber-600 animate-spin" />
+          <span className="ml-2 text-gray-400">Carregando notícias...</span>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-4 sm:p-6 md:p-8 bg-gray-800/50 border-amber-600/30">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-xl sm:text-2xl text-white mb-2">Gestão de Notícias</h2>
+          <p className="text-sm text-gray-400">
+            Crie, edite e exclua notícias do site
+          </p>
+        </div>
+        <Button
+          onClick={handleCreate}
+          className="bg-amber-600 hover:bg-amber-700 text-white sm:w-auto"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Nova Notícia
+        </Button>
+      </div>
+
+      {noticias.length === 0 ? (
+        <div className="text-center py-12">
+          <Newspaper className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+          <p className="text-gray-400 mb-4">Nenhuma notícia cadastrada ainda.</p>
+          <Button onClick={handleCreate} className="bg-amber-600 hover:bg-amber-700">
+            <Plus className="w-4 h-4 mr-2" />
+            Criar Primeira Notícia
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {noticias.map((noticia) => (
+            <div
+              key={noticia.id}
+              className="p-4 bg-gray-900/50 border border-gray-700 rounded-lg hover:border-amber-500/50 transition-colors"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start gap-3 mb-2">
+                    {noticia.imagem_url && (
+                      <img
+                        src={noticia.imagem_url}
+                        alt={noticia.titulo}
+                        className="w-16 h-16 object-cover rounded flex-shrink-0"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h3 className="text-white font-semibold text-sm sm:text-base">{noticia.titulo}</h3>
+                        {noticia.categoria && (
+                          <Badge className={`${getCategoryColor(noticia.categoria)} border text-xs`}>
+                            {noticia.categoria}
+                          </Badge>
+                        )}
+                        {noticia.publicado ? (
+                          <Badge className="bg-green-600/20 text-green-400 border-green-500/50 text-xs">
+                            Publicado
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-gray-600/20 text-gray-400 border-gray-500/50 text-xs">
+                            Rascunho
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs sm:text-sm text-gray-400 mb-2 line-clamp-2">
+                        {noticia.resumo || noticia.conteudo.substring(0, 100) + '...'}
+                      </p>
+                      <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
+                        {noticia.autor_nome && (
+                          <div className="flex items-center gap-1">
+                            <User className="w-3 h-3" />
+                            <span>{noticia.autor_nome}</span>
+                          </div>
+                        )}
+                        {noticia.data_publicacao && (
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            <span>{formatDate(noticia.data_publicacao)}</span>
+                          </div>
+                        )}
+                        <span>Visualizações: {noticia.visualizacoes}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <Button
+                    onClick={() => handleEdit(noticia)}
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                  >
+                    <Edit className="w-4 h-4 mr-1" />
+                    Editar
+                  </Button>
+                  <Button
+                    onClick={() => handleDelete(noticia.id)}
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-red-400 border-red-500/50 hover:bg-red-600/20"
+                    disabled={deletingId === noticia.id}
+                  >
+                    {deletingId === noticia.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal de Criar/Editar Notícia */}
+      {showEditModal && (
+        <NoticiaEditModal
+          noticia={editingNoticia}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingNoticia(null);
+          }}
+          onSuccess={() => {
+            setShowEditModal(false);
+            setEditingNoticia(null);
+            loadNoticias();
+          }}
+          categories={categories}
+        />
+      )}
+    </Card>
+  );
+}
+
+// Componente Modal para Criar/Editar Notícia
+function NoticiaEditModal({
+  noticia,
+  onClose,
+  onSuccess,
+  categories
+}: {
+  noticia: Noticia | null;
+  onClose: () => void;
+  onSuccess: () => void;
+  categories: string[];
+}) {
+  const [titulo, setTitulo] = useState(noticia?.titulo || '');
+  const [conteudo, setConteudo] = useState(noticia?.conteudo || '');
+  const [resumo, setResumo] = useState(noticia?.resumo || '');
+  const [imagemUrl, setImagemUrl] = useState(noticia?.imagem_url || '');
+  const [categoria, setCategoria] = useState(noticia?.categoria || '');
+  const [novaCategoria, setNovaCategoria] = useState('');
+  const [mostrarNovaCategoria, setMostrarNovaCategoria] = useState(false);
+  const [tags, setTags] = useState(noticia?.tags?.join(', ') || '');
+  const [publicado, setPublicado] = useState(noticia?.publicado ?? true);
+  const [destaque, setDestaque] = useState(noticia?.destaque ?? false);
+  const [saving, setSaving] = useState(false);
+
+  // Categorias pré-definidas
+  const categoriasPredefinidas = [
+    'Conquistas',
+    'Treinamento',
+    'Parcerias',
+    'Infraestrutura',
+    'Recrutamento',
+    'Tutoriais',
+    'Eventos',
+    'Torneios',
+    'Geral'
+  ];
+
+  useEffect(() => {
+    if (noticia) {
+      setTitulo(noticia.titulo || '');
+      setConteudo(noticia.conteudo || '');
+      setResumo(noticia.resumo || '');
+      setImagemUrl(noticia.imagem_url || '');
+      setCategoria(noticia.categoria || '');
+      setTags(noticia.tags?.join(', ') || '');
+      setPublicado(noticia.publicado ?? true);
+      setDestaque(noticia.destaque ?? false);
+      setMostrarNovaCategoria(false);
+      setNovaCategoria('');
+    } else {
+      setTitulo('');
+      setConteudo('');
+      setResumo('');
+      setImagemUrl('');
+      setCategoria('');
+      setTags('');
+      setPublicado(true);
+      setDestaque(false);
+      setMostrarNovaCategoria(false);
+      setNovaCategoria('');
+    }
+  }, [noticia]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!titulo.trim() || !conteudo.trim()) {
+      toast.error('Título e conteúdo são obrigatórios');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const tagsArray = tags.split(',').map(t => t.trim()).filter(Boolean);
+      
+      // Usar nova categoria se estiver preenchendo, senão usar a categoria selecionada
+      const categoriaFinal = mostrarNovaCategoria && novaCategoria.trim() 
+        ? novaCategoria.trim() 
+        : categoria || null;
+      
+      if (noticia) {
+        // Editar
+        await noticiasService.update(noticia.id, {
+          titulo: titulo.trim(),
+          conteudo: conteudo.trim(),
+          resumo: resumo.trim() || null,
+          imagem_url: imagemUrl.trim() || null,
+          categoria: categoriaFinal,
+          tags: tagsArray,
+          publicado,
+          destaque,
+        });
+        toast.success('Notícia atualizada com sucesso!');
+      } else {
+        // Criar
+        await noticiasService.create({
+          titulo: titulo.trim(),
+          conteudo: conteudo.trim(),
+          resumo: resumo.trim() || null,
+          imagem_url: imagemUrl.trim() || null,
+          categoria: categoriaFinal,
+          tags: tagsArray,
+          publicado,
+          destaque,
+        });
+        toast.success('Notícia criada com sucesso!');
+      }
+      onSuccess();
+    } catch (error: any) {
+      toast.error('Erro ao salvar notícia: ' + (error.message || 'Erro desconhecido'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 overflow-y-auto">
+      <Card className="bg-gray-900 border-gray-700 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-4 sm:p-6">
+          <div className="flex justify-between items-center mb-4 sm:mb-6">
+            <h2 className="text-xl sm:text-2xl text-white font-bold">
+              {noticia ? 'Editar Notícia' : 'Nova Notícia'}
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-800 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Título *</label>
+              <input
+                type="text"
+                value={titulo}
+                onChange={(e) => setTitulo(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                placeholder="Título da notícia"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Resumo</label>
+              <textarea
+                value={resumo}
+                onChange={(e) => setResumo(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                placeholder="Resumo breve da notícia (opcional)"
+                rows={2}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Conteúdo *</label>
+              <textarea
+                value={conteudo}
+                onChange={(e) => setConteudo(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                placeholder="Conteúdo completo da notícia"
+                rows={8}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">URL da Imagem</label>
+              <input
+                type="url"
+                value={imagemUrl}
+                onChange={(e) => setImagemUrl(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                placeholder="https://exemplo.com/imagem.jpg"
+              />
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Categoria</label>
+                {!mostrarNovaCategoria ? (
+                  <div className="space-y-2">
+                    <select
+                      value={categoria}
+                      onChange={(e) => {
+                        if (e.target.value === 'nova') {
+                          setMostrarNovaCategoria(true);
+                          setCategoria('');
+                        } else {
+                          setCategoria(e.target.value);
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                    >
+                      <option value="">Selecione uma categoria</option>
+                      {categoriasPredefinidas.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                      {categories.filter(cat => !categoriasPredefinidas.includes(cat)).map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                      <option value="nova" className="text-amber-500">+ Criar nova categoria</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={novaCategoria}
+                      onChange={(e) => setNovaCategoria(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                      placeholder="Nome da nova categoria"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMostrarNovaCategoria(false);
+                        setNovaCategoria('');
+                      }}
+                      className="text-xs text-gray-400 hover:text-gray-300"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Tags (separadas por vírgula)</label>
+                <input
+                  type="text"
+                  value={tags}
+                  onChange={(e) => setTags(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  placeholder="tag1, tag2, tag3"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="publicado"
+                  checked={publicado}
+                  onChange={(e) => setPublicado(e.target.checked)}
+                  className="w-4 h-4 text-amber-600 bg-gray-800 border-gray-700 rounded"
+                />
+                <label htmlFor="publicado" className="text-sm text-gray-300">
+                  Publicar imediatamente
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="destaque"
+                  checked={destaque}
+                  onChange={(e) => setDestaque(e.target.checked)}
+                  className="w-4 h-4 text-amber-600 bg-gray-800 border-gray-700 rounded"
+                />
+                <label htmlFor="destaque" className="text-sm text-gray-300">
+                  Marcar como destaque
+                </label>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <Button
+                type="submit"
+                disabled={saving}
+                className="flex-1 bg-amber-600 hover:bg-amber-700"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    {noticia ? 'Atualizar' : 'Criar'} Notícia
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                onClick={onClose}
+                variant="outline"
+                className="flex-1"
+                disabled={saving}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -1131,6 +1829,86 @@ function EquipeEditForm({
         />
       </div>
 
+      <div>
+        <label className="block text-sm text-gray-400 mb-2">URL do Logo</label>
+        <input
+          type="url"
+          value={formData.logo_url || ''}
+          onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
+          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+          placeholder="https://exemplo.com/logo.png"
+        />
+        {formData.logo_url && (
+          <img 
+            src={formData.logo_url} 
+            alt="Preview do logo" 
+            className="mt-2 max-w-xs rounded border border-gray-700"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        )}
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">Email</label>
+          <input
+            type="email"
+            value={formData.email || ''}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+            placeholder="equipe@gosttactical.com.br"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">Telefone</label>
+          <input
+            type="tel"
+            value={formData.telefone || ''}
+            onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+            placeholder="(11) 98765-4321"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm text-gray-400 mb-2">Endereço</label>
+        <input
+          type="text"
+          value={formData.endereco || ''}
+          onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
+          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+          placeholder="Rua, número, complemento"
+        />
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">Cidade</label>
+          <input
+            type="text"
+            value={formData.cidade || ''}
+            onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+            placeholder="São Paulo"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">Estado</label>
+          <input
+            type="text"
+            value={formData.estado || ''}
+            onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+            placeholder="SP"
+          />
+        </div>
+      </div>
+
       <div className="flex gap-2">
         <Button type="submit">
           <Save className="w-4 h-4 mr-2" />
@@ -1570,3 +2348,569 @@ function EstatutoEditForm({
   );
 }
 
+// Componente de Gestão de Parceiros
+function ParceirosManagement() {
+  const [parceiros, setParceiros] = useState<Parceiro[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingParceiro, setEditingParceiro] = useState<Parceiro | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadParceiros();
+  }, []);
+
+  const loadParceiros = async () => {
+    try {
+      setLoading(true);
+      const response = await parceirosService.list();
+      if (response.success) {
+        setParceiros(response.data);
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar parceiros:', error);
+      toast.error('Erro ao carregar parceiros');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este parceiro?')) {
+      return;
+    }
+
+    try {
+      setDeletingId(id);
+      const response = await parceirosService.delete(id);
+      if (response.success) {
+        toast.success('Parceiro excluído com sucesso!');
+        loadParceiros();
+      }
+    } catch (error: any) {
+      toast.error('Erro ao excluir parceiro: ' + (error.message || 'Erro desconhecido'));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleEdit = (parceiro: Parceiro) => {
+    setEditingParceiro(parceiro);
+    setShowEditModal(true);
+  };
+
+  const handleCreate = () => {
+    setEditingParceiro(null);
+    setShowEditModal(true);
+  };
+
+  if (loading) {
+    return (
+      <Card className="p-6 bg-gray-800/50 border-amber-600/30">
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 text-amber-600 animate-spin" />
+          <span className="ml-2 text-gray-400">Carregando parceiros...</span>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-4 sm:p-6 md:p-8 bg-gray-800/50 border-amber-600/30">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-xl sm:text-2xl text-white mb-2">Gestão de Parceiros</h2>
+          <p className="text-sm text-gray-400">
+            Crie, edite e exclua parceiros e patrocinadores
+          </p>
+        </div>
+        <Button
+          onClick={handleCreate}
+          className="bg-amber-600 hover:bg-amber-700 text-white sm:w-auto"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Novo Parceiro
+        </Button>
+      </div>
+
+      {parceiros.length === 0 ? (
+        <div className="text-center py-12">
+          <Handshake className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+          <p className="text-gray-400 mb-4">Nenhum parceiro cadastrado ainda.</p>
+          <Button onClick={handleCreate} className="bg-amber-600 hover:bg-amber-700">
+            <Plus className="w-4 h-4 mr-2" />
+            Criar Primeiro Parceiro
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {parceiros.map((parceiro) => (
+            <div
+              key={parceiro.id}
+              className="p-4 bg-gray-900/50 border border-gray-700 rounded-lg hover:border-amber-500/50 transition-colors"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start gap-3 mb-2">
+                    {parceiro.logo_url && (
+                      <img
+                        src={parceiro.logo_url}
+                        alt={parceiro.nome}
+                        className="w-16 h-16 object-cover rounded flex-shrink-0"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h3 className="text-white font-semibold text-sm sm:text-base">{parceiro.nome}</h3>
+                        {parceiro.tipo && (
+                          <Badge className="bg-gray-600/20 text-gray-400 border-gray-500/50 text-xs">
+                            {parceiro.tipo}
+                          </Badge>
+                        )}
+                        {parceiro.ativo ? (
+                          <Badge className="bg-green-600/20 text-green-400 border-green-500/50 text-xs">
+                            Ativo
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-gray-600/20 text-gray-400 border-gray-500/50 text-xs">
+                            Inativo
+                          </Badge>
+                        )}
+                      </div>
+                      {parceiro.descricao && (
+                        <p className="text-xs sm:text-sm text-gray-400 mb-2 line-clamp-2">
+                          {parceiro.descricao}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
+                        {parceiro.email && (
+                          <span className="truncate">{parceiro.email}</span>
+                        )}
+                        {parceiro.telefone && (
+                          <span>{parceiro.telefone}</span>
+                        )}
+                        <span>Ordem: {parceiro.ordem_exibicao}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <Button
+                    onClick={() => handleEdit(parceiro)}
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                  >
+                    <Edit className="w-4 h-4 mr-1" />
+                    Editar
+                  </Button>
+                  <Button
+                    onClick={() => handleDelete(parceiro.id)}
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-red-400 border-red-500/50 hover:bg-red-600/20"
+                    disabled={deletingId === parceiro.id}
+                  >
+                    {deletingId === parceiro.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showEditModal && (
+        <ParceiroEditModal
+          parceiro={editingParceiro}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingParceiro(null);
+          }}
+          onSuccess={() => {
+            setShowEditModal(false);
+            setEditingParceiro(null);
+            loadParceiros();
+          }}
+        />
+      )}
+    </Card>
+  );
+}
+
+// Componente Modal para Criar/Editar Parceiro
+function ParceiroEditModal({
+  parceiro,
+  onClose,
+  onSuccess,
+}: {
+  parceiro: Parceiro | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [nome, setNome] = useState(parceiro?.nome || '');
+  const [descricao, setDescricao] = useState(parceiro?.descricao || '');
+  const [logoUrl, setLogoUrl] = useState(parceiro?.logo_url || '');
+  const [website, setWebsite] = useState(parceiro?.website || '');
+  const [email, setEmail] = useState(parceiro?.email || '');
+  const [telefone, setTelefone] = useState(parceiro?.telefone || '');
+  const [endereco, setEndereco] = useState(parceiro?.endereco || '');
+  const [tipo, setTipo] = useState(parceiro?.tipo || '');
+  const [ordemExibicao, setOrdemExibicao] = useState(parceiro?.ordem_exibicao || 0);
+  const [ativo, setAtivo] = useState(parceiro?.ativo ?? true);
+  const [saving, setSaving] = useState(false);
+
+  const tiposPredefinidos = [
+    'Loja de Equipamentos',
+    'Uniformes e Equipamentos',
+    'Peças e Upgrades',
+    'Campo de Airsoft',
+    'Patrocinador',
+    'Fabricante',
+    'Outro'
+  ];
+
+  useEffect(() => {
+    if (parceiro) {
+      setNome(parceiro.nome || '');
+      setDescricao(parceiro.descricao || '');
+      setLogoUrl(parceiro.logo_url || '');
+      setWebsite(parceiro.website || '');
+      setEmail(parceiro.email || '');
+      setTelefone(parceiro.telefone || '');
+      setEndereco(parceiro.endereco || '');
+      setTipo(parceiro.tipo || '');
+      setOrdemExibicao(parceiro.ordem_exibicao || 0);
+      setAtivo(parceiro.ativo ?? true);
+    } else {
+      setNome('');
+      setDescricao('');
+      setLogoUrl('');
+      setWebsite('');
+      setEmail('');
+      setTelefone('');
+      setEndereco('');
+      setTipo('');
+      setOrdemExibicao(0);
+      setAtivo(true);
+    }
+  }, [parceiro]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!nome.trim()) {
+      toast.error('Nome é obrigatório');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      
+      if (parceiro) {
+        await parceirosService.update(parceiro.id, {
+          nome: nome.trim(),
+          descricao: descricao.trim() || null,
+          logo_url: logoUrl.trim() || null,
+          website: website.trim() || null,
+          email: email.trim() || null,
+          telefone: telefone.trim() || null,
+          endereco: endereco.trim() || null,
+          tipo: tipo || null,
+          ordem_exibicao: ordemExibicao,
+          ativo,
+        });
+        toast.success('Parceiro atualizado com sucesso!');
+      } else {
+        await parceirosService.create({
+          nome: nome.trim(),
+          descricao: descricao.trim() || null,
+          logo_url: logoUrl.trim() || null,
+          website: website.trim() || null,
+          email: email.trim() || null,
+          telefone: telefone.trim() || null,
+          endereco: endereco.trim() || null,
+          tipo: tipo || null,
+          ordem_exibicao: ordemExibicao,
+          ativo,
+        });
+        toast.success('Parceiro criado com sucesso!');
+      }
+      onSuccess();
+    } catch (error: any) {
+      toast.error('Erro ao salvar parceiro: ' + (error.message || 'Erro desconhecido'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 overflow-y-auto">
+      <Card className="bg-gray-900 border-gray-700 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-4 sm:p-6">
+          <div className="flex justify-between items-center mb-4 sm:mb-6">
+            <h2 className="text-xl sm:text-2xl text-white font-bold">
+              {parceiro ? 'Editar Parceiro' : 'Novo Parceiro'}
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-800 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Nome *</label>
+              <input
+                type="text"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                placeholder="Nome do parceiro"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Descrição</label>
+              <textarea
+                value={descricao}
+                onChange={(e) => setDescricao(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                placeholder="Descrição do parceiro"
+                rows={3}
+              />
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">URL do Logo</label>
+                <input
+                  type="url"
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  placeholder="https://exemplo.com/logo.png"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Tipo</label>
+                <input
+                  type="text"
+                  value={tipo}
+                  onChange={(e) => setTipo(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  placeholder="Ex: Loja, Campo, Patrocinador"
+                  list="tipos-list"
+                />
+                <datalist id="tipos-list">
+                  {tiposPredefinidos.map((t) => (
+                    <option key={t} value={t} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  placeholder="email@exemplo.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Telefone</label>
+                <input
+                  type="text"
+                  value={telefone}
+                  onChange={(e) => setTelefone(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  placeholder="(11) 98765-4321"
+                />
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Website</label>
+                <input
+                  type="url"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  placeholder="https://exemplo.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Ordem de Exibição</label>
+                <input
+                  type="number"
+                  value={ordemExibicao}
+                  onChange={(e) => setOrdemExibicao(parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  min="0"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Endereço</label>
+              <input
+                type="text"
+                value={endereco}
+                onChange={(e) => setEndereco(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                placeholder="Endereço completo"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="ativo"
+                checked={ativo}
+                onChange={(e) => setAtivo(e.target.checked)}
+                className="w-4 h-4 text-amber-600 bg-gray-800 border-gray-700 rounded"
+              />
+              <label htmlFor="ativo" className="text-sm text-gray-300">
+                Ativo (visível na página pública)
+              </label>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <Button
+                type="submit"
+                disabled={saving}
+                className="flex-1 bg-amber-600 hover:bg-amber-700"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    {parceiro ? 'Atualizar' : 'Criar'} Parceiro
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                onClick={onClose}
+                variant="outline"
+                className="flex-1"
+                disabled={saving}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// Componente de formulário para contatos da equipe
+function ContatoEquipeForm({
+  email,
+  whatsapp,
+  onSave,
+  onCancel,
+}: {
+  email: string;
+  whatsapp: string;
+  onSave: (email: string, whatsapp: string) => void;
+  onCancel: () => void;
+}) {
+  const [formEmail, setFormEmail] = useState(email);
+  const [formWhatsapp, setFormWhatsapp] = useState(whatsapp);
+
+  const maskPhoneBR = (value: string) => {
+    const digits = (value || '').replace(/\D/g, '').slice(0, 11);
+    const ddd = digits.slice(0, 2);
+    const rest = digits.slice(2);
+    if (!ddd) return '';
+    if (rest.length > 5) {
+      if (digits.length === 11) {
+        const p1 = rest.slice(0, 5);
+        const p2 = rest.slice(5, 9);
+        return `(${ddd}) ${p1}${p2 ? '-' + p2 : ''}`;
+      }
+    }
+    const p1 = rest.slice(0, 4);
+    const p2 = rest.slice(4, 8);
+    return `(${ddd}) ${p1}${p2 ? '-' + p2 : ''}`;
+  };
+
+  const handleWhatsappChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const masked = maskPhoneBR(e.target.value);
+    setFormWhatsapp(masked);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(formEmail.trim(), formWhatsapp.trim());
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm text-gray-400 mb-2">Email da Equipe *</label>
+        <input
+          type="email"
+          value={formEmail}
+          onChange={(e) => setFormEmail(e.target.value)}
+          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+          placeholder="equipe@gosttactical.com.br"
+          required
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Email usado para receber notificações de novos recrutamentos
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm text-gray-400 mb-2">WhatsApp da Equipe</label>
+        <input
+          type="tel"
+          value={formWhatsapp}
+          onChange={handleWhatsappChange}
+          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+          placeholder="(11) 98765-4321"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          WhatsApp usado para contato rápido (opcional)
+        </p>
+      </div>
+
+      <div className="flex gap-2 pt-2">
+        <Button type="submit" className="flex-1 bg-amber-600 hover:bg-amber-700">
+          <Save className="w-4 h-4 mr-2" />
+          Salvar
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
+          <X className="w-4 h-4 mr-2" />
+          Cancelar
+        </Button>
+      </div>
+    </form>
+  );
+}

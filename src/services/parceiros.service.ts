@@ -28,5 +28,19 @@ export const parceirosService = {
   create: async (data: Partial<Parceiro>): Promise<{ success: boolean; data: Parceiro }> => {
     return api.post('/api/parceiros', data, { requireAuth: true });
   },
+
+  /**
+   * Atualiza um parceiro existente
+   */
+  update: async (id: string, data: Partial<Parceiro>): Promise<{ success: boolean; data: Parceiro }> => {
+    return api.put(`/api/parceiros/${id}`, data, { requireAuth: true });
+  },
+
+  /**
+   * Exclui um parceiro
+   */
+  delete: async (id: string): Promise<{ success: boolean; message?: string }> => {
+    return api.delete(`/api/parceiros/${id}`, { requireAuth: true });
+  },
 };
 

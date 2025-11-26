@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { getUserInfo } from '../utils/auth';
 import { jogosService, type Jogo } from '../services/jogos.service';
 import { usuariosService, type Usuario } from '../services/usuarios.service';
+import { n8nService } from '../services/n8n.service';
 
 interface Event {
   id: string | number;
@@ -444,12 +445,39 @@ export function Calendar() {
           }));
         } else {
           // Confirma presença
-          await jogosService.confirmPresence(String(eventId));
+          const confirmResponse = await jogosService.confirmPresence(String(eventId));
           toast.success('Presença confirmada com sucesso!');
           setUserResponses(prev => ({
             ...prev,
             [eventId]: 'confirmed'
           }));
+
+          // Enviar email via n8n para confirmação e agendar lembrete
+          if (confirmResponse.success) {
+            const jogo = confirmResponse.data;
+            const user = await getUserInfo();
+            
+            if (user && jogo) {
+              n8nService.enviarEmailConfirmacaoPresenca({
+                tipo: 'confirmacao_presenca',
+                jogo: {
+                  id: jogo.id,
+                  nome_jogo: jogo.nome_jogo,
+                  data_jogo: jogo.data_jogo || null,
+                  hora_inicio: jogo.hora_inicio || null,
+                  local_jogo: jogo.local_jogo || null,
+                  tipo_jogo: jogo.tipo_jogo || null,
+                },
+                usuario: {
+                  id: user.id,
+                  email: user.email,
+                  name: user.name || null,
+                },
+              }).catch((error) => {
+                console.warn('Erro ao enviar email de confirmação:', error);
+              });
+            }
+          }
         }
       } else {
         // Recusar = remover confirmação se existir

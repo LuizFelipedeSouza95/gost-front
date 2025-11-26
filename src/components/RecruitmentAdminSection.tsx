@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { recrutamentoService, type Recrutamento } from '../services/recrutamento.service';
 import { usuariosService, type Usuario } from '../services/usuarios.service';
 import { getUserInfo } from '../utils/auth';
+import { n8nService } from '../services/n8n.service';
 
 type EtapaTipo = 'inscricao' | 'avaliacao' | 'qa' | 'votacao' | 'integracao';
 
@@ -58,6 +59,25 @@ export function RecruitmentAdminSection() {
       const response = await recrutamentoService.updateStage(recrutamentoId, etapa, status, observacoes);
       if (response.success) {
         toast.success(`Etapa ${getEtapaNome(etapa)} ${status === 'aprovado' ? 'aprovada' : 'reprovada'}!`);
+        
+        // Enviar email via n8n para o candidato sobre a atualização
+        const recrutamentoAtualizado = response.data;
+        n8nService.enviarEmailAtualizacaoRecrutamento({
+          tipo: 'atualizacao_etapa',
+          recrutamento: {
+            id: recrutamentoAtualizado.id,
+            nome: recrutamentoAtualizado.nome,
+            email: recrutamentoAtualizado.email,
+            telefone: recrutamentoAtualizado.telefone,
+            etapa_atual: etapa,
+            status_etapa: status,
+            observacoes: observacoes || null,
+            responsavel: recrutamentoAtualizado.responsavel,
+          },
+        }).catch((error) => {
+          console.warn('Erro ao enviar email de atualização:', error);
+        });
+        
         setShowStageModal(false);
         setSelectedRecrutamento(null);
         loadData();
