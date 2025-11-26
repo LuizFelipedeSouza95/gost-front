@@ -18,13 +18,23 @@ ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 # Instala o Yarn globalmente (se necessário)
 RUN corepack enable
 
-# Copia os arquivos de dependência e instala
-COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
+# Copia package.json primeiro
+COPY package.json ./
 
-# Copia o código-fonte e faz a build (yarn build)
+# Copia yarn.lock se existir (será copiado no COPY . . abaixo se existir no contexto)
+# Por enquanto, instala sem --frozen-lockfile
+RUN yarn install
+
+# Copia o código-fonte completo (incluindo yarn.lock se existir no contexto)
 # Agora as variáveis VITE_ estarão disponíveis durante a build
 COPY . .
+
+# Se yarn.lock foi copiado, reinstala com --frozen-lockfile para garantir consistência
+RUN if [ -f yarn.lock ] && [ -s yarn.lock ]; then \
+        echo "yarn.lock encontrado, reinstalando com --frozen-lockfile para garantir consistência"; \
+        yarn install --frozen-lockfile; \
+    fi
+
 RUN yarn build 
 
 # ==================================================

@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
-yarn.lock
+# yarn.lock deve ser versionado para garantir builds consistentes
+# yarn.lock
 package-lock.json
 
 # Build output
