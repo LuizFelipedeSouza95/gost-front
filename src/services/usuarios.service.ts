@@ -25,11 +25,11 @@ export interface UsuariosResponse {
 
 export const usuariosService = {
   /**
-   * Lista todos os usuários
+   * Lista todos os usuários (pode ser chamado sem autenticação para visualização pública)
    */
-  list: async (page = 1, limit = 20): Promise<UsuariosResponse> => {
+  list: async (page = 1, limit = 20, requireAuth = false): Promise<UsuariosResponse> => {
     return api.get<UsuariosResponse>(`/api/usuarios?page=${page}&limit=${limit}`, {
-      requireAuth: true,
+      requireAuth,
     });
   },
 

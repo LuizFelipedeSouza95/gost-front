@@ -20,11 +20,16 @@ export function Login({ setActiveSection }: LoginProps) {
 
         // Verifica se o usuário está autenticado após o redirect
         const checkAuthAfterRedirect = async () => {
+            // Limpa o cache antes de verificar (importante após redirect)
+            clearUserCache();
+            
             // Aguarda um pouco para garantir que a sessão foi salva no backend
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => setTimeout(resolve, 500));
             
             try {
+                console.log('🔍 Verificando autenticação após redirect...');
                 const userData = await getUserInfo();
+                
                 if (userData) {
                     console.log('✅ Login realizado com sucesso! Dados do usuário:', userData);
                     
@@ -37,6 +42,8 @@ export function Login({ setActiveSection }: LoginProps) {
                     if (setActiveSection) {
                         setActiveSection('inicio');
                     }
+                } else {
+                    console.warn('⚠️ Nenhum dado de usuário retornado após login');
                 }
             } catch (e) {
                 console.error('❌ Erro ao verificar autenticação:', e);

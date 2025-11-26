@@ -45,10 +45,12 @@ export function Calendar() {
 
   useEffect(() => {
     checkAdmin();
+    loadJogos(); // Carrega jogos mesmo sem estar logado
   }, []);
 
   useEffect(() => {
-    if (currentUserId !== null) {
+    // Recarrega jogos quando o usuário fizer login/logout para atualizar confirmações
+    if (currentUserId !== null || currentUserId === null) {
       loadJogos();
     }
   }, [currentUserId]);
@@ -171,7 +173,7 @@ export function Calendar() {
         
         setEvents(jogosAsEvents);
 
-        // Atualizar userResponses baseado nas confirmações do backend
+        // Atualizar userResponses baseado nas confirmações do backend (só se estiver logado)
         if (currentUserId) {
           const newResponses: Record<string | number, 'confirmed' | 'declined' | null> = {};
           finalJogos.forEach((jogo: Jogo) => {
@@ -180,6 +182,9 @@ export function Calendar() {
             }
           });
           setUserResponses(newResponses);
+        } else {
+          // Se não estiver logado, limpa as respostas
+          setUserResponses({});
         }
       }
     } catch (error: any) {
@@ -417,6 +422,14 @@ export function Calendar() {
   };
 
   const handleConfirmPresence = async (eventId: string | number, response: 'confirmed' | 'declined') => {
+    // Verifica se o usuário está autenticado
+    if (!currentUserId) {
+      toast.error('Você precisa fazer login para confirmar presença');
+      // Opcional: redirecionar para login
+      // window.dispatchEvent(new CustomEvent('changeSection', { detail: 'login' }));
+      return;
+    }
+
     try {
       const currentResponse = userResponses[eventId];
 
@@ -455,7 +468,11 @@ export function Calendar() {
       // Recarregar jogos para atualizar contadores
       loadJogos();
     } catch (error: any) {
-      toast.error('Erro ao atualizar presença: ' + (error.message || 'Erro desconhecido'));
+      if (error.response?.status === 401) {
+        toast.error('Você precisa fazer login para confirmar presença');
+      } else {
+        toast.error('Erro ao atualizar presença: ' + (error.message || 'Erro desconhecido'));
+      }
     }
   };
 

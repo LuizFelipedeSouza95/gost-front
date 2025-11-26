@@ -37,7 +37,8 @@ export function MembersSection() {
   const loadMembros = async () => {
     try {
       setLoading(true);
-      const response = await usuariosService.list(1, 100);
+      // Tenta carregar sem autenticação primeiro (para visualização pública)
+      const response = await usuariosService.list(1, 100, false);
       if (response.success && response.data) {
         // Filtrar apenas membros ativos que foram cadastrados como membros oficiais pelos admins
         const membrosAtivos = response.data.filter(u => 
@@ -47,7 +48,12 @@ export function MembersSection() {
       }
     } catch (error: any) {
       console.error('Erro ao carregar membros:', error);
-      toast.error('Erro ao carregar membros');
+      // Se der erro de autenticação, mostra mensagem amigável
+      if (error.response?.status === 401) {
+        toast.error('Erro ao carregar membros. Verifique se você está logado.');
+      } else {
+        toast.error('Erro ao carregar membros');
+      }
     } finally {
       setLoading(false);
     }
