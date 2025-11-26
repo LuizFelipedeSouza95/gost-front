@@ -43,7 +43,6 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
 
   const allMenuItems = [...mainMenuItems, ...moreMenuItems];
 
-  // Verifica autenticação ao montar e quando o componente é atualizado
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -51,24 +50,12 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
         setIsLoggedIn(authenticated);
 
         if (authenticated) {
-          // Obtém dados do usuário da sessão do backend
           const userData = await getUserInfo();
-          console.log('🔍 Header - Verificando autenticação:', {
-            authenticated,
-            hasUserData: !!userData,
-          });
-
           if (userData) {
-            console.log('✅ Header - Dados do usuário carregados:', {
-              name: userData.name,
-              email: userData.email,
-              hasPicture: !!userData.picture,
-            });
             setUserData(userData);
             setIsAdmin(userData.roles?.includes('admin') || false);
-            setImageError(false); // Reseta o erro da imagem quando novos dados são carregados
+            setImageError(false);
           } else {
-            console.warn('⚠️ Header - Não foi possível obter dados do usuário');
             setUserData(null);
             setImageError(false);
           }
@@ -76,35 +63,29 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
           setUserData(null);
         }
       } catch (error) {
-        console.error('❌ Header - Erro ao verificar autenticação:', error);
+        console.error('Erro ao verificar autenticação:', error);
         setIsLoggedIn(false);
         setUserData(null);
       }
     };
 
-    // Verifica imediatamente
     checkAuth();
 
-    // Escuta eventos customizados (para mesma aba)
     const handleAuthSuccess = async (e: Event) => {
       const customEvent = e as CustomEvent;
-      console.log('📢 Header - Evento auth-success disparado', customEvent.detail);
-      // Se os dados vieram no evento, usa eles, senão busca do backend
       if (customEvent.detail?.userData) {
         const userData = customEvent.detail.userData;
         setUserData(userData);
         setIsAdmin(userData.roles?.includes('admin') || false);
         setIsLoggedIn(true);
-        setImageError(false); // Reseta o erro da imagem quando novos dados são carregados
+        setImageError(false);
       } else {
         await checkAuth();
       }
     };
 
     window.addEventListener('auth-success', handleAuthSuccess);
-
-    // Verifica periodicamente (para detectar expiração da sessão)
-    const interval = setInterval(checkAuth, 30000); // A cada 30 segundos
+    const interval = setInterval(checkAuth, 30000);
 
     return () => {
       window.removeEventListener('auth-success', handleAuthSuccess);
@@ -123,7 +104,6 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
     <header className="fixed top-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-sm border-b border-amber-600/30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo ou Foto do Usuário */}
           {isLoggedIn && userData ? (
             <div className="relative">
               <button
@@ -136,10 +116,7 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
                     alt={userData.name || 'Usuário'}
                     className="w-10 h-10 rounded-full border-2 border-amber-500/50 object-cover"
                     referrerPolicy="no-referrer"
-                    onError={() => {
-                      console.warn('⚠️ Erro ao carregar imagem do usuário');
-                      setImageError(true);
-                    }}
+                    onError={() => setImageError(true)}
                     loading="lazy"
                   />
                 ) : (
@@ -155,7 +132,6 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
                 </div>
               </button>
 
-              {/* Dropdown do Usuário */}
               {userDropdownOpen && (
                 <>
                   <div
@@ -200,15 +176,12 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
             </div>
           )}
 
-          {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center gap-6">
             {mainMenuItems
               .filter(item => {
-                // Se não está logado, mostra apenas login e inicio
                 if (!isLoggedIn) {
                   return item.id === 'login' || item.id === 'inicio';
                 }
-                // Se está logado, mostra todos EXCETO login
                 return item.id !== 'login';
               })
               .map((item) => (
@@ -224,7 +197,6 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
                 </button>
               ))}
 
-            {/* More Dropdown */}
             <div className="relative">
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -262,7 +234,6 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
             </div>
           </nav>
 
-          {/* Mobile: Botão de usuário ou menu */}
           <div className="lg:hidden flex items-center gap-3">
             <button
               className="text-gray-300"
@@ -274,17 +245,14 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
         </div>
       </div>
 
-      {/* Mobile Navigation */}
       {mobileMenuOpen && (
         <div className="lg:hidden bg-gray-800 border-t border-amber-600/30 max-h-[80vh] overflow-y-auto">
           <nav className="px-4 py-4 space-y-2">
             {allMenuItems
               .filter(item => {
-                // Se não está logado, mostra apenas login e inicio
                 if (!isLoggedIn) {
                   return item.id === 'login' || item.id === 'inicio';
                 }
-                // Se está logado, mostra todos EXCETO login
                 return item.id !== 'login';
               })
               .map((item) => (

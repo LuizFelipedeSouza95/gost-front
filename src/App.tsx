@@ -25,7 +25,6 @@ import { Toaster } from './components/ui/sonner';
 export default function App() {
   const [activeSection, setActiveSection] = useState('inicio');
 
-  // Listener para mudança de seção via evento customizado
   React.useEffect(() => {
     const handleSectionChange = (e: CustomEvent) => {
       setActiveSection(e.detail);

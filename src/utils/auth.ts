@@ -1,7 +1,3 @@
-/**
- * Utilitário para autenticação usando sessão do backend
- */
-
 import { api } from '../services/api';
 
 export interface UserInfo {
@@ -12,24 +8,18 @@ export interface UserInfo {
   roles: string[];
 }
 
-// Cache dos dados do usuário para evitar requisições desnecessárias
 let userCache: UserInfo | null = null;
 let lastCheck = 0;
-const CACHE_DURATION = 30000; // 30 segundos
+const CACHE_DURATION = 30000;
 
-/**
- * Verifica se o usuário está autenticado fazendo uma requisição ao backend
- */
 export async function isAuthenticated(): Promise<boolean> {
   try {
     const data = await api.get<{ success: boolean; user?: UserInfo }>('/api/auth/me');
-
     if (data.success && data.user) {
       userCache = data.user;
       lastCheck = Date.now();
       return true;
     }
-
     userCache = null;
     return false;
   } catch (error) {
@@ -38,24 +28,18 @@ export async function isAuthenticated(): Promise<boolean> {
   }
 }
 
-/**
- * Obtém informações do usuário autenticado
- */
 export async function getUserInfo(): Promise<UserInfo | null> {
-  // Se temos cache recente, retorna ele
   if (userCache && Date.now() - lastCheck < CACHE_DURATION) {
     return userCache;
   }
 
   try {
     const data = await api.get<{ success: boolean; user?: UserInfo }>('/api/auth/me');
-
     if (data.success && data.user) {
       userCache = data.user;
       lastCheck = Date.now();
       return data.user;
     }
-
     userCache = null;
     return null;
   } catch (error) {
@@ -64,25 +48,18 @@ export async function getUserInfo(): Promise<UserInfo | null> {
   }
 }
 
-/**
- * Faz logout do usuário
- */
 export async function logout(): Promise<void> {
   try {
     await api.post('/api/auth/logout', {});
   } catch (error) {
     console.error('Erro ao fazer logout:', error);
   } finally {
-    // Limpa o cache mesmo se houver erro
     userCache = null;
     lastCheck = 0;
     window.location.href = '/';
   }
 }
 
-/**
- * Limpa o cache de usuário (útil após login/logout)
- */
 export function clearUserCache(): void {
   userCache = null;
   lastCheck = 0;

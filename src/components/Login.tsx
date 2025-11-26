@@ -10,43 +10,28 @@ interface LoginProps {
 export function Login({ setActiveSection }: LoginProps) {
     const [isLoading, setIsLoading] = useState(false);
 
-    // Verifica se o usuário acabou de fazer login (após redirect do Google)
     useEffect(() => {
-        // Limpa qualquer query parameter da URL imediatamente
         if (window.location.search) {
             const cleanUrl = window.location.pathname;
             window.history.replaceState({}, document.title, cleanUrl);
         }
 
-        // Verifica se o usuário está autenticado após o redirect
         const checkAuthAfterRedirect = async () => {
-            // Limpa o cache antes de verificar (importante após redirect)
             clearUserCache();
-            
-            // Aguarda um pouco para garantir que a sessão foi salva no backend
             await new Promise(resolve => setTimeout(resolve, 500));
             
             try {
-                console.log('🔍 Verificando autenticação após redirect...');
                 const userData = await getUserInfo();
-                
                 if (userData) {
-                    console.log('✅ Login realizado com sucesso! Dados do usuário:', userData);
-                    
-                    // Dispara evento customizado para atualizar o Header
                     window.dispatchEvent(new CustomEvent('auth-success', { 
                         detail: { userData }
                     }));
-                    
-                    // Redireciona para a página inicial após login bem-sucedido
                     if (setActiveSection) {
                         setActiveSection('inicio');
                     }
-                } else {
-                    console.warn('⚠️ Nenhum dado de usuário retornado após login');
                 }
             } catch (e) {
-                console.error('❌ Erro ao verificar autenticação:', e);
+                console.error('Erro ao verificar autenticação:', e);
             } finally {
                 setIsLoading(false);
             }
@@ -58,14 +43,10 @@ export function Login({ setActiveSection }: LoginProps) {
     const handleGoogleLogin = async (e?: React.MouseEvent) => {
         e?.preventDefault();
         e?.stopPropagation();
-        
         setIsLoading(true);
         try {
-            // Usa a URL do backend da configuração centralizada
             const backendUrl = getBackendUrl();
             const authUrl = `${backendUrl}/api/auth/google`;
-            
-            // Redireciona para a rota de autenticação Google do backend
             window.location.href = authUrl;
         } catch (error) {
             console.error('Erro ao fazer login:', error);
@@ -100,7 +81,6 @@ export function Login({ setActiveSection }: LoginProps) {
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                // console.log('Botão clicado!');
                                 handleGoogleLogin(e);
                             }}
                             disabled={isLoading}
