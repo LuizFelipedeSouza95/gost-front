@@ -13,6 +13,8 @@ export interface EquipeInfo {
   endereco?: string | null;
   cidade?: string | null;
   estado?: string | null;
+  instagram_url?: string | null;
+  whatsapp_url?: string | null;
 }
 
 export const equipeService = {

@@ -30,6 +30,8 @@ export function ConfiguracoesSection() {
     endereco: null,
     cidade: null,
     estado: null,
+    instagram_url: null,
+    whatsapp_url: null,
   });
   const [loading, setLoading] = useState(true);
   const [editingUsuario, setEditingUsuario] = useState<string | null>(null);
@@ -125,7 +127,8 @@ export function ConfiguracoesSection() {
       if (response.success) {
         toast.success('Usuário atualizado com sucesso!');
         setEditingUsuario(null);
-        loadData();
+        // Recarrega dados imediatamente
+        await loadData();
       }
     } catch (error: any) {
       toast.error('Erro ao atualizar usuário: ' + (error.message || 'Erro desconhecido'));
@@ -138,7 +141,8 @@ export function ConfiguracoesSection() {
       if (response.success) {
         toast.success('Usuário criado com sucesso!');
         setCreatingUsuario(false);
-        loadData();
+        // Recarrega dados imediatamente
+        await loadData();
       }
     } catch (error: any) {
       toast.error('Erro ao criar usuário: ' + (error.message || 'Erro desconhecido'));
@@ -151,7 +155,8 @@ export function ConfiguracoesSection() {
       if (response.success) {
         toast.success('Squad atualizado com sucesso!');
         setEditingSquad(null);
-        loadData();
+        // Recarrega dados imediatamente
+        await loadData();
       }
     } catch (error: any) {
       toast.error('Erro ao atualizar squad: ' + (error.message || 'Erro desconhecido'));
@@ -165,7 +170,8 @@ export function ConfiguracoesSection() {
       const response = await squadsService.delete(id);
       if (response.success) {
         toast.success('Squad deletado com sucesso!');
-        loadData();
+        // Recarrega dados imediatamente
+        await loadData();
       }
     } catch (error: any) {
       toast.error('Erro ao deletar squad: ' + (error.message || 'Erro desconhecido'));
@@ -184,7 +190,8 @@ export function ConfiguracoesSection() {
       if (response.success) {
         toast.success('Squad criado com sucesso!');
         setCreatingSquad(false);
-        loadData();
+        // Recarrega dados imediatamente
+        await loadData();
       }
     } catch (error: any) {
       toast.error('Erro ao criar squad: ' + (error.message || 'Erro desconhecido'));
@@ -458,6 +465,8 @@ export function ConfiguracoesSection() {
                         });
                         setEditingEquipe(false);
                         toast.success('Informações da equipe atualizadas!');
+                        // Recarrega todos os dados para garantir sincronização
+                        loadData();
                       }
                     } catch (error: any) {
                       toast.error('Erro ao salvar: ' + (error.message || 'Erro desconhecido'));
@@ -527,6 +536,26 @@ export function ConfiguracoesSection() {
                       </p>
                     </div>
                   )}
+                  {equipe.instagram_url && (
+                    <div>
+                      <label className="text-sm text-gray-400">Instagram</label>
+                      <p className="text-white">
+                        <a href={equipe.instagram_url} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:text-amber-300">
+                          {equipe.instagram_url}
+                        </a>
+                      </p>
+                    </div>
+                  )}
+                  {equipe.whatsapp_url && (
+                    <div>
+                      <label className="text-sm text-gray-400">WhatsApp</label>
+                      <p className="text-white">
+                        <a href={equipe.whatsapp_url} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:text-amber-300">
+                          {equipe.whatsapp_url}
+                        </a>
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </Card>
@@ -564,6 +593,8 @@ export function ConfiguracoesSection() {
                         setEstatuto(response.data);
                         setEditingEstatuto(false);
                         toast.success('Estatuto salvo com sucesso!');
+                        // Recarrega todos os dados para garantir sincronização
+                        loadData();
                       }
                     } catch (error: any) {
                       toast.error('Erro ao salvar: ' + (error.message || 'Erro desconhecido'));
@@ -1905,6 +1936,30 @@ function EquipeEditForm({
             onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
             className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
             placeholder="SP"
+          />
+        </div>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">URL do Instagram</label>
+          <input
+            type="url"
+            value={formData.instagram_url || ''}
+            onChange={(e) => setFormData({ ...formData, instagram_url: e.target.value })}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+            placeholder="https://www.instagram.com/gost.operacional"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">URL do WhatsApp</label>
+          <input
+            type="url"
+            value={formData.whatsapp_url || ''}
+            onChange={(e) => setFormData({ ...formData, whatsapp_url: e.target.value })}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+            placeholder="https://chat.whatsapp.com/..."
           />
         </div>
       </div>
