@@ -46,12 +46,12 @@ WORKDIR /app
 # Instala o 'serve' globalmente para rodar o comando de preview/start
 RUN npm install -g serve
 
-# Copia a saída da build (dist)
-COPY --from=builder /app/dist /app/dist 
+# Copia a saída da build (build - conforme configurado no vite.config.ts)
+COPY --from=builder /app/build /app/build 
 
 # Define a porta e o comando de inicialização
 ENV PORT 8080
 EXPOSE 8080
 
-# Comando de inicialização: serve -s dist -p 8080
-CMD ["serve", "-s", "dist", "-l", "8080"]
+# Comando de inicialização: serve -s build -p 8080
+CMD ["serve", "-s", "build", "-l", "8080"]
