@@ -1,7 +1,5 @@
 import { api } from './api';
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3001';
-
 export interface Galeria {
   id: string;
   imagem_url: string;
@@ -61,18 +59,11 @@ export const galeriaService = {
     if (data.nome_operacao) formData.append('nome_operacao', data.nome_operacao);
     if (data.data_operacao) formData.append('data_operacao', data.data_operacao);
 
-    const response = await fetch(`${API_BASE_URL}/api/galeria`, {
-      method: 'POST',
-      body: formData,
-      credentials: 'include', // Importante para cookies de sessão
+    return api.post('/api/galeria', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Erro desconhecido' }));
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
-    }
-
-    return response.json();
   },
 
   /**

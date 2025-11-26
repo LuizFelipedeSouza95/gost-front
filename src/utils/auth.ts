@@ -2,7 +2,7 @@
  * Utilitário para autenticação usando sessão do backend
  */
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3001';
+import { api } from '../services/api';
 
 export interface UserInfo {
   id: string;
@@ -22,21 +22,12 @@ const CACHE_DURATION = 30000; // 30 segundos
  */
 export async function isAuthenticated(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-      method: 'GET',
-      credentials: 'include', // Importante para enviar cookies de sessão
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const data = await api.get<{ success: boolean; user?: UserInfo }>('/api/auth/me');
 
-    if (response.ok) {
-      const data = await response.json();
-      if (data.success && data.user) {
-        userCache = data.user;
-        lastCheck = Date.now();
-        return true;
-      }
+    if (data.success && data.user) {
+      userCache = data.user;
+      lastCheck = Date.now();
+      return true;
     }
 
     userCache = null;
@@ -57,21 +48,12 @@ export async function getUserInfo(): Promise<UserInfo | null> {
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-      method: 'GET',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const data = await api.get<{ success: boolean; user?: UserInfo }>('/api/auth/me');
 
-    if (response.ok) {
-      const data = await response.json();
-      if (data.success && data.user) {
-        userCache = data.user;
-        lastCheck = Date.now();
-        return data.user;
-      }
+    if (data.success && data.user) {
+      userCache = data.user;
+      lastCheck = Date.now();
+      return data.user;
     }
 
     userCache = null;
@@ -87,13 +69,7 @@ export async function getUserInfo(): Promise<UserInfo | null> {
  */
 export async function logout(): Promise<void> {
   try {
-    await fetch(`${API_BASE_URL}/api/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    await api.post('/api/auth/logout', {});
   } catch (error) {
     console.error('Erro ao fazer logout:', error);
   } finally {
