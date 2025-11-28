@@ -43,9 +43,14 @@ export const jogosService = {
 
   /**
    * Confirma presença em um jogo
+   * @param id ID do jogo
+   * @param nome Nome do usuário (opcional, necessário apenas se não autenticado)
+   * @param email Email do usuário (opcional, necessário apenas se não autenticado)
    */
-  confirmPresence: async (id: string): Promise<{ success: boolean; data: Jogo }> => {
-    return api.post(`/api/jogos/${id}/confirm`, {}, { requireAuth: true });
+  confirmPresence: async (id: string, nome?: string, email?: string): Promise<{ success: boolean; data: Jogo }> => {
+    const body = nome ? { nome, email } : {};
+    // Não requer autenticação se nome for fornecido
+    return api.post(`/api/jogos/${id}/confirm`, body, nome ? {} : { requireAuth: true });
   },
 
   /**

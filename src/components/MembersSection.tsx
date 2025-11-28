@@ -228,7 +228,6 @@ export function MembersSection() {
                           <p className="text-xs text-gray-400 capitalize">{member.role}</p>
                         </div>
                       </div>
-                      <p className="text-xs text-amber-400">• {member.specialization}</p>
                     </div>
                   ))}
                 </div>

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Shield, Mail, Instagram, MessageCircle } from 'lucide-react';
-import { equipeService, type EquipeInfo } from '../services/equipe.service';
+import { equipeService } from '../services/equipe.service';
+import type { EquipeInfo } from '../services/equipe.service';
 
 export function Footer() {
-  const [equipe, setEquipe] = useState<EquipeInfo | null>(null);
+  const [equipe, setEquipe] = useState(null as EquipeInfo | null);
   const [logoError, setLogoError] = useState(false);
 
   useEffect(() => {
@@ -134,25 +135,31 @@ export function Footer() {
                   {emailEquipe}
                 </a>
               </div>
-              <div className="flex gap-4 mt-4">
-                <a
-                  href={instagramUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-amber-400 transition-colors"
-                  aria-label="Instagram"
-                >
-                  <Instagram className="w-5 h-5" />
-                </a>
-                <a
-                  href={whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-amber-400 transition-colors"
-                  aria-label="WhatsApp"
-                >
-                  <MessageCircle className="w-5 h-5" />
-                </a>
+              <div className="flex flex-col gap-3 mt-4">
+                {instagramUrl && (
+                  <a
+                    href={instagramUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 hover:text-amber-400 transition-colors"
+                    aria-label="Instagram"
+                  >
+                    <Instagram className="w-5 h-5" />
+                    <span>Instagram</span>
+                  </a>
+                )}
+                {whatsappUrl && (
+                  <a
+                    href={whatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 hover:text-amber-400 transition-colors"
+                    aria-label="WhatsApp"
+                  >
+                    <MessageCircle className="w-5 h-5" />
+                    <span>WhatsApp</span>
+                  </a>
+                )}
               </div>
             </div>
           </div>

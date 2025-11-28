@@ -7,12 +7,12 @@ import { toast } from 'sonner';
 import { getUserInfo } from '../utils/auth';
 import { jogosService, type Jogo } from '../services/jogos.service';
 import { usuariosService, type Usuario } from '../services/usuarios.service';
-import { n8nService } from '../services/n8n.service';
 
 interface Event {
   id: string | number;
   date: Date;
   title: string;
+  description?: string | null;
   location: string;
   time: string;
   participants: number;
@@ -38,6 +38,7 @@ export function Calendar() {
   const [showConfirmationsModal, setShowConfirmationsModal] = useState<string | number | null>(null);
   const [confirmedUsers, setConfirmedUsers] = useState<Usuario[]>([]);
   const [loadingConfirmations, setLoadingConfirmations] = useState(false);
+  const [showNameModal, setShowNameModal] = useState<{ eventId: string | number; response: 'confirmed' | 'declined' } | null>(null);
 
   const [jogos, setJogos] = useState<Jogo[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
@@ -81,6 +82,7 @@ export function Calendar() {
         id: jogo.id,
         date: eventDate,
         title: jogo.nome_jogo,
+        description: jogo.descricao_jogo || null,
         location: jogo.local_jogo || 'Local não informado',
         time: jogo.hora_inicio && jogo.hora_fim
           ? `${jogo.hora_inicio} - ${jogo.hora_fim}`
@@ -317,18 +319,31 @@ export function Calendar() {
     // Days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       const currentDate = new Date(currentYear, currentMonth, day);
+      currentDate.setHours(0, 0, 0, 0);
+      
       // Verifica se há evento, mas exclui jogos cancelados da marcação no calendário
-      const hasEvent = events.some(event =>
+      const eventOnDay = events.find(event =>
         event.date.getDate() === day &&
         event.date.getMonth() === currentMonth &&
         event.date.getFullYear() === currentYear &&
         event.status !== 'cancelled' // Não marca jogos cancelados no calendário
       );
+      
+      const hasEvent = !!eventOnDay;
+      const eventDate = eventOnDay ? new Date(eventOnDay.date) : null;
+      if (eventDate) {
+        eventDate.setHours(0, 0, 0, 0);
+      }
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const isEventPast = eventDate ? eventDate < today : false;
+      
       const isSelected = selectedDate &&
         selectedDate.getDate() === day &&
         selectedDate.getMonth() === currentMonth &&
         selectedDate.getFullYear() === currentYear;
-      const isPast = currentDate < new Date(new Date().setHours(0, 0, 0, 0));
+      const isPast = currentDate < today;
 
       days.push(
         <button
@@ -343,7 +358,9 @@ export function Calendar() {
           className={`p-2 text-center rounded-lg transition-colors w-full ${isSelected
             ? 'bg-blue-600/50 border-2 border-blue-500 text-white'
             : hasEvent
-              ? 'bg-amber-600/30 border border-amber-500/50 text-white'
+              ? isEventPast
+                ? 'bg-gray-500/30 border border-gray-400/50 text-gray-300'
+                : 'bg-amber-600/30 border border-amber-500/50 text-white'
               : isPast
                 ? 'text-gray-600 cursor-not-allowed opacity-50'
                 : isAdmin
@@ -422,12 +439,16 @@ export function Calendar() {
     }
   };
 
-  const handleConfirmPresence = async (eventId: string | number, response: 'confirmed' | 'declined') => {
-    // Verifica se o usuário está autenticado
-    if (!currentUserId) {
-      toast.error('Você precisa fazer login para confirmar presença');
-      // Opcional: redirecionar para login
-      // window.dispatchEvent(new CustomEvent('changeSection', { detail: 'login' }));
+  const handleConfirmPresence = async (eventId: string | number, response: 'confirmed' | 'declined', nome?: string, email?: string) => {
+    // Se não estiver logado e for confirmar, abre modal para coletar nome e email
+    if (!currentUserId && response === 'confirmed') {
+      setShowNameModal({ eventId, response });
+      return;
+    }
+
+    // Se não estiver logado e for recusar, não faz nada
+    if (!currentUserId && response === 'declined') {
+      toast.info('Você precisa estar logado para remover confirmação');
       return;
     }
 
@@ -436,61 +457,41 @@ export function Calendar() {
 
       if (response === 'confirmed') {
         if (currentResponse === 'confirmed') {
-          // Se já está confirmado, remove a confirmação
-          await jogosService.removePresence(String(eventId));
-          toast.success('Presença removida com sucesso!');
-          setUserResponses(prev => ({
-            ...prev,
-            [eventId]: null
-          }));
+          // Se já está confirmado, remove a confirmação (só se estiver logado)
+          if (currentUserId) {
+            await jogosService.removePresence(String(eventId));
+            toast.success('Presença removida com sucesso!');
+            setUserResponses(prev => ({
+              ...prev,
+              [eventId]: null
+            }));
+          }
         } else {
-          // Confirma presença
-          const confirmResponse = await jogosService.confirmPresence(String(eventId));
+          // Confirma presença (com nome e email se não autenticado)
+          const confirmResponse = await jogosService.confirmPresence(String(eventId), nome, email);
           toast.success('Presença confirmada com sucesso!');
           setUserResponses(prev => ({
             ...prev,
             [eventId]: 'confirmed'
           }));
 
-          // Enviar email via n8n para confirmação e agendar lembrete
-          if (confirmResponse.success) {
-            const jogo = confirmResponse.data;
-            const user = await getUserInfo();
-            
-            if (user && jogo) {
-              n8nService.enviarEmailConfirmacaoPresenca({
-                tipo: 'confirmacao_presenca',
-                jogo: {
-                  id: jogo.id,
-                  nome_jogo: jogo.nome_jogo,
-                  data_jogo: jogo.data_jogo || null,
-                  hora_inicio: jogo.hora_inicio || null,
-                  local_jogo: jogo.local_jogo || null,
-                  tipo_jogo: jogo.tipo_jogo || null,
-                },
-                usuario: {
-                  id: user.id,
-                  email: user.email,
-                  name: user.name || null,
-                },
-              }).catch((error) => {
-                console.warn('Erro ao enviar email de confirmação:', error);
-              });
-            }
-          }
+          // O email será enviado automaticamente 1 dia antes do jogo pelo n8n
+          // Não é necessário enviar email imediatamente ao confirmar presença
         }
       } else {
-        // Recusar = remover confirmação se existir
-        if (currentResponse === 'confirmed') {
-          await jogosService.removePresence(String(eventId));
-          toast.success('Presença removida com sucesso!');
-        } else {
-          toast.info('Você não estava confirmado neste jogo');
+        // Recusar = remover confirmação se existir (só se estiver logado)
+        if (currentUserId) {
+          if (currentResponse === 'confirmed') {
+            await jogosService.removePresence(String(eventId));
+            toast.success('Presença removida com sucesso!');
+          } else {
+            toast.info('Você não estava confirmado neste jogo');
+          }
+          setUserResponses(prev => ({
+            ...prev,
+            [eventId]: null
+          }));
         }
-        setUserResponses(prev => ({
-          ...prev,
-          [eventId]: null
-        }));
       }
 
       // Recarregar jogos para atualizar contadores
@@ -621,6 +622,14 @@ export function Calendar() {
                           {event.type}
                         </Badge>
                       </div>
+
+                      {event.description && (
+                        <div className="mb-4">
+                          <p className="text-sm text-gray-300 leading-relaxed">
+                            {event.description}
+                          </p>
+                        </div>
+                      )}
 
                       <div className="space-y-2 text-sm text-gray-400 mb-4">
                         <div className="flex items-center gap-2">
@@ -788,6 +797,18 @@ export function Calendar() {
             setShowConfirmationsModal(null);
             setConfirmedUsers([]);
           }}
+        />
+      )}
+
+      {/* Modal para coletar nome e email quando não estiver logado */}
+      {showNameModal && (
+        <NameModal
+          event={events.find(e => e.id === showNameModal.eventId)}
+          onConfirm={(nome, email) => {
+            handleConfirmPresence(showNameModal.eventId, showNameModal.response, nome, email);
+            setShowNameModal(null);
+          }}
+          onCancel={() => setShowNameModal(null)}
         />
       )}
     </div>
@@ -1228,6 +1249,117 @@ function ConfirmModal({
   );
 }
 
+// Componente de modal para coletar nome e email quando não estiver logado
+function NameModal({
+  event,
+  onConfirm,
+  onCancel,
+}: {
+  event?: Event;
+  onConfirm: (nome: string, email: string) => void;
+  onCancel: () => void;
+}) {
+  const [nome, setNome] = useState('');
+  const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nome.trim()) {
+      toast.error('Por favor, informe seu nome');
+      return;
+    }
+    if (!email.trim()) {
+      toast.error('Por favor, informe seu email');
+      return;
+    }
+    // Validação básica de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      toast.error('Por favor, informe um email válido');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      onConfirm(nome.trim(), email.trim());
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={onCancel}
+    >
+      <Card 
+        className="p-6 bg-gray-800 border-amber-600/30 max-w-sm"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4">
+          <h3 className="text-xl text-white mb-2">Confirmar Presença</h3>
+          {event && (
+            <p className="text-sm text-gray-400 mb-4">
+              Para confirmar presença em <strong className="text-white">{event.title}</strong>, 
+              por favor informe seu nome e email:
+            </p>
+          )}
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Seu Nome *</label>
+            <input
+              type="text"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+              placeholder="Digite seu nome"
+              required
+              autoFocus
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Seu Email *</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+              placeholder="seu@email.com"
+              required
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div className="flex gap-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              className="flex-1"
+              disabled={isSubmitting}
+            >
+              <X className="w-4 h-4 mr-2" />
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              className="flex-1"
+              disabled={isSubmitting || !nome.trim() || !email.trim()}
+            >
+              <CheckCircle className="w-4 h-4 mr-2" />
+              {isSubmitting ? 'Confirmando...' : 'Confirmar'}
+            </Button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
 // Componente de modal de confirmações
 function ConfirmationsModal({
   event,
@@ -1287,22 +1419,25 @@ function ConfirmationsModal({
             </div>
           ) : (
             <div className="space-y-2">
-              {users.map((user) => (
+              {users.map((user, index) => (
                 <div
-                  key={user.id}
+                  key={`user-${user.id}-${index}`}
                   className="flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg border border-gray-700/50"
                 >
                   {user.picture ? (
                     <img
+                      key={`picture-${user.id}-${index}`}
                       src={user.picture}
                       alt={user.name || user.email}
-                      className="w-10 h-10 rounded-full object-cover border-2 border-green-500/50"
+                      className="w-10 h-10 rounded-full object-cover border-2 border-green-500/50 flex-shrink-0"
+                      loading="lazy"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
                       }}
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center border-2 border-green-500/50">
+                    <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center border-2 border-green-500/50 flex-shrink-0">
                       <User className="w-5 h-5 text-gray-400" />
                     </div>
                   )}

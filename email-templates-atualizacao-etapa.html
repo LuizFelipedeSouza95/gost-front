@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atualização no Processo de Recrutamento - {{ $json.body.nomeEquipe }} - {{ $json.body.significadoNome }}</title>
+
+</head>
+
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+
+    <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation"
+                    style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td
+                            style="background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); padding: 30px 20px; text-align: center;">
+                            <h1
+                                style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold; text-transform: uppercase; letter-spacing: 2px;">
+                                {{ $json.body.nomeEquipe }}
+                            </h1>
+                            <p style="margin: 10px 0 0; color: #ffffff; font-size: 14px; opacity: 0.9;">
+                                {{ $json.body.significadoNome }}
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <h2 style="margin: 0 0 20px; color: #000000; font-size: 24px; font-weight: bold;">
+                                Olá, {{ $json.body.nome }}!
+                            </h2>
+
+                            <p style="margin: 0 0 20px; color: #000000; font-size: 16px; line-height: 1.6;">
+                                Temos uma atualização importante sobre seu processo de recrutamento no <strong
+                                    style="color: #f59e0b;">{{ $json.body.nomeEquipe }}</strong>!
+                            </p>
+
+                            <!-- Status Card -->
+                            <div
+                                style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 30px 0; border-radius: 4px;">
+                                <p
+                                    style="margin: 0 0 10px; color: #000000; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">
+                                    Status Atual
+                                </p>
+                                <p style="margin: 0; color: #000000; font-size: 18px; font-weight: bold;">
+                                    {{ $json.body.status }}
+                                </p>
+                            </div>
+
+                            <p style="margin: 30px 0 20px; color: #000000; font-size: 16px; line-height: 1.6;">
+                                <strong style="color: #f59e0b;">O que isso significa:</strong>
+                            </p>
+
+                            <ul
+                                style="margin: 0 0 30px; padding-left: 20px; color: #000000; font-size: 16px; line-height: 1.8;">
+                                <li style="margin-bottom: 10px;">Sua inscrição foi atualizada</li>
+                                <li style="margin-bottom: 10px;">Nossa equipe está acompanhando seu processo</li>
+                                <li style="margin-bottom: 10px;">Você receberá atualizações por email sobre as próximas etapas</li>
+                            </ul>
+
+                            <!-- Contact Info -->
+                            <div
+                                style="background-color: #f9fafb; padding: 20px; margin: 30px 0; border-radius: 4px; border: 1px solid #e5e7eb;">
+                                <p style="margin: 0 0 15px; color: #000000; font-size: 16px; font-weight: bold;">
+                                    Entre em contato conosco:
+                                </p>
+
+                                <p style="margin: 0 0 10px; color: #000000; font-size: 14px;">
+                                    <strong>WhatsApp:</strong>
+                                    {{ $json.body.linkWhatsApp ? '<a href="' + $json.body.linkWhatsApp + '" style="color: #f59e0b; text-decoration: none;">Clique aqui para entrar no grupo</a>' : 'Não disponível' }}
+                                </p>
+
+                                <p style="margin: 0 0 10px; color: #000000; font-size: 14px;">
+                                    <strong>Instagram:</strong>
+                                    {{ $json.body.linkInstagram ? '<a href="' + $json.body.linkInstagram + '" style="color: #f59e0b; text-decoration: none;">Clique aqui e siga nosso perfil</a>' : 'Não disponível' }}
+                                </p>
+
+                            </div>
+
+                            <p style="margin: 30px 0 0; color: #000000; font-size: 14px; line-height: 1.6;">
+                                Se você tiver alguma dúvida, não hesite em nos contatar através dos canais acima.
+                            </p>
+
+                            <p style="margin: 20px 0 0; color: #000000; font-size: 14px; line-height: 1.6;">
+                                Boa sorte no processo de recrutamento!
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td
+                            style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+                            <p style="margin: 0 0 10px; color: #000000; font-size: 12px;">
+                                {{ $json.body.nomeEquipe }} - {{ $json.body.significadoNome }}
+                            </p>
+                            <p style="margin: 0; color: #000000; font-size: 11px;">
+                                Este é um email automático, por favor não responda.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+
+</html>
+

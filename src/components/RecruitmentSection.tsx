@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { getUserInfo } from '../utils/auth';
 import { recrutamentoService, type Recrutamento } from '../services/recrutamento.service';
 import { n8nService } from '../services/n8n.service';
+import { equipeService } from '../services/equipe.service';
 
 export function RecruitmentSection() {
   const [formData, setFormData] = useState({
@@ -28,13 +29,20 @@ export function RecruitmentSection() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [userLoaded, setUserLoaded] = useState(false);
-  const [myRecrutamento, setMyRecrutamento] = useState<Recrutamento | null>(null);
+  const [myRecrutamento, setMyRecrutamento] = useState(null as Recrutamento | null);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [autoFilledFields, setAutoFilledFields] = useState<{ nome: boolean; email: boolean }>({
+  const [showForm, setShowForm] = useState(false);
+  const [autoFilledFields, setAutoFilledFields] = useState({
     nome: false,
     email: false,
-  });
+  } as { nome: boolean; email: boolean });
+  const [equipeData, setEquipeData] = useState(null as { 
+    whatsapp_url?: string | null; 
+    instagram_url?: string | null;
+    nome?: string | null;
+    significado_nome?: string | null;
+  } | null);
 
   // Função para aplicar máscara de telefone brasileiro
   const maskPhoneBR = (value: string) => {
@@ -73,6 +81,26 @@ export function RecruitmentSection() {
     }
   };
 
+  // Carregar dados da equipe
+  useEffect(() => {
+    const loadEquipeData = async () => {
+      try {
+        const response = await equipeService.get();
+        if (response.success && response.data) {
+          setEquipeData({
+            whatsapp_url: response.data.whatsapp_url || null,
+            instagram_url: response.data.instagram_url || null,
+            nome: response.data.nome || null,
+            significado_nome: response.data.significado_nome || null,
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados da equipe:', error);
+      }
+    };
+    loadEquipeData();
+  }, []);
+
   // Preencher dados do usuário logado e carregar status do recrutamento
   useEffect(() => {
     const loadUserData = async () => {
@@ -106,9 +134,9 @@ export function RecruitmentSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userLoaded]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: { target: { name: string; value: string } }) => {
     const { name, value } = e.target;
-    
+
     // Aplicar máscara de telefone
     if (name === 'telefone') {
       const maskedValue = maskPhoneBR(value);
@@ -124,14 +152,14 @@ export function RecruitmentSection() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
 
     try {
       setLoading(true);
       // Remover máscara do telefone antes de enviar
       const telefoneSemMascara = formData.telefone.replace(/\D/g, '');
-      
+
       const response = await recrutamentoService.create({
         nome: formData.nome.trim(),
         email: formData.email.trim(),
@@ -151,15 +179,17 @@ export function RecruitmentSection() {
 
         // Enviar emails via n8n para o candidato e para a equipe
         const recrutamentoCriado = response.data;
+        // Status inicial sempre "Em Análise" para novos recrutamentos
         n8nService.enviarEmailNovoRecrutamento({
           tipo: 'novo_recrutamento',
-          recrutamento: {
-            id: recrutamentoCriado.id,
-            nome: recrutamentoCriado.nome,
-            email: recrutamentoCriado.email,
-            telefone: recrutamentoCriado.telefone || null,
-            responsavel: recrutamentoCriado.responsavel || null,
-          },
+          id: recrutamentoCriado.id,
+          nome: recrutamentoCriado.nome,
+          email: recrutamentoCriado.email,
+          status: 'Em Análise', // Status inicial sempre "Em Análise"
+          linkWhatsApp: equipeData?.whatsapp_url || null,
+          linkInstagram: equipeData?.instagram_url || null,
+          nomeEquipe: equipeData?.nome || null,
+          significadoNome: equipeData?.significado_nome || null,
         }).catch((error) => {
           console.warn('Erro ao enviar email de recrutamento:', error);
         });
@@ -216,6 +246,7 @@ export function RecruitmentSection() {
             });
           }
           setSubmitted(false);
+          setShowForm(false);
         }, 5000);
       }
     } catch (error: any) {
@@ -224,6 +255,44 @@ export function RecruitmentSection() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Verifica se pode solicitar novo recrutamento após reprovação
+  const canRequestNewRecruitment = () => {
+    if (!myRecrutamento || myRecrutamento.status !== 'reprovado') {
+      return true; // Se não tem recrutamento ou não está reprovado, pode solicitar
+    }
+
+    if (!myRecrutamento.createdAt) {
+      return true; // Se não tem data, permite (fallback)
+    }
+
+    const reprovacaoDate = new Date(myRecrutamento.createdAt);
+    const hoje = new Date();
+    const umMesAtras = new Date();
+    umMesAtras.setMonth(umMesAtras.getMonth() - 1);
+
+    // Se a reprovação foi há mais de 1 mês, pode solicitar novo
+    return reprovacaoDate <= umMesAtras;
+  };
+
+  const getDaysUntilCanRequest = () => {
+    if (!myRecrutamento || myRecrutamento.status !== 'reprovado' || !myRecrutamento.createdAt) {
+      return null;
+    }
+
+    const reprovacaoDate = new Date(myRecrutamento.createdAt);
+    const umMesDepois = new Date(reprovacaoDate);
+    umMesDepois.setMonth(umMesDepois.getMonth() + 1);
+
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    umMesDepois.setHours(0, 0, 0, 0);
+
+    const diffTime = umMesDepois.getTime() - hoje.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    return diffDays > 0 ? diffDays : 0;
   };
 
   const requirements = [
@@ -350,7 +419,40 @@ export function RecruitmentSection() {
           <Card className="p-4 sm:p-6 md:p-8 bg-gray-800/50 backdrop-blur-sm border-amber-600/30">
             <h2 className="text-xl sm:text-2xl text-white mb-4 sm:mb-6">Formulário de Interesse</h2>
 
-            {submitted ? (
+            {!showForm ? (
+              <div className="text-center py-8 sm:py-12">
+                {myRecrutamento && myRecrutamento.status === 'reprovado' && !canRequestNewRecruitment() ? (
+                  <>
+                    <XCircle className="w-12 h-12 sm:w-16 sm:h-16 text-red-500 mx-auto mb-3 sm:mb-4" />
+                    <h3 className="text-xl sm:text-2xl text-white mb-2">Aguarde para Nova Inscrição</h3>
+                    <p className="text-sm sm:text-base text-gray-400 px-2 mb-4">
+                      Você foi reprovado em uma inscrição anterior. Para solicitar uma nova inscrição, é necessário aguardar 1 mês desde a reprovação.
+                    </p>
+                    {getDaysUntilCanRequest() !== null && getDaysUntilCanRequest()! > 0 && (
+                      <p className="text-sm text-amber-400 font-semibold">
+                        Você poderá solicitar uma nova inscrição em {getDaysUntilCanRequest()} dia(s).
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-12 h-12 sm:w-16 sm:h-16 text-amber-500 mx-auto mb-3 sm:mb-4" />
+                    <h3 className="text-xl sm:text-2xl text-white mb-2">Preencha o Formulário</h3>
+                    <p className="text-sm sm:text-base text-gray-400 px-2 mb-6">
+                      Clique no botão abaixo para preencher o formulário de interesse e iniciar seu processo de recrutamento.
+                    </p>
+                    <Button
+                      onClick={() => setShowForm(true)}
+                      className="bg-amber-600 hover:bg-amber-700 text-white"
+                      size="lg"
+                    >
+                      <UserPlus className="w-5 h-5 mr-2" />
+                      Preencher Formulário de Interesse
+                    </Button>
+                  </>
+                )}
+              </div>
+            ) : submitted ? (
               <div className="text-center py-8 sm:py-12">
                 <CheckCircle className="w-12 h-12 sm:w-16 sm:h-16 text-green-500 mx-auto mb-3 sm:mb-4" />
                 <h3 className="text-xl sm:text-2xl text-white mb-2">Formulário Enviado!</h3>
@@ -359,163 +461,176 @@ export function RecruitmentSection() {
                 </p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-                <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
-                  <div>
-                    <Label htmlFor="nome" className="text-gray-300">Nome Completo *</Label>
-                    <Input
-                      id="nome"
-                      name="nome"
-                      value={formData.nome}
-                      onChange={handleChange}
-                      required
-                      disabled={autoFilledFields.nome}
-                      className="mt-2 bg-gray-900/50 border-gray-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="email" className="text-gray-300">Email *</Label>
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      required
-                      disabled={autoFilledFields.email}
-                      className="mt-2 bg-gray-900/50 border-gray-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="telefone" className="text-gray-300">Telefone *</Label>
-                    <Input
-                      id="telefone"
-                      name="telefone"
-                      type="tel"
-                      value={formData.telefone}
-                      onChange={handleChange}
-                      required
-                      placeholder="(00) 00000-0000"
-                      className="mt-2 bg-gray-900/50 border-gray-700 text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="idade" className="text-gray-300">Idade *</Label>
-                    <Input
-                      id="idade"
-                      name="idade"
-                      type="number"
-                      min="18"
-                      value={formData.idade}
-                      onChange={handleChange}
-                      required
-                      className="mt-2 bg-gray-900/50 border-gray-700 text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="instagram" className="text-gray-300">Instagram</Label>
-                    <Input
-                      id="instagram"
-                      name="instagram"
-                      type="text"
-                      value={formData.instagram}
-                      onChange={handleChange}
-                      placeholder="@seu_usuario"
-                      className="mt-2 bg-gray-900/50 border-gray-700 text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="cidade" className="text-gray-300">Cidade *</Label>
-                    <Input
-                      id="cidade"
-                      name="cidade"
-                      value={formData.cidade}
-                      onChange={handleChange}
-                      required
-                      className="mt-2 bg-gray-900/50 border-gray-700 text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="experiencia" className="text-gray-300">Tempo de Experiência em Airsoft *</Label>
-                    <Input
-                      id="experiencia"
-                      name="experiencia"
-                      placeholder="Ex: 2 anos ou 3 meses"
-                      value={formData.experiencia}
-                      onChange={handleChange}
-                      required
-                      className="mt-2 bg-gray-900/50 border-gray-700 text-white"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Informe em anos ou meses (ex: "2 anos", "6 meses", "1 ano e 3 meses")</p>
-                  </div>
+              <>
+                <div className="flex items-center justify-between mb-4 sm:mb-6">
+                  <h3 className="text-lg sm:text-xl text-white">Preencha os dados abaixo</h3>
+                  <Button
+                    onClick={() => setShowForm(false)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Cancelar
+                  </Button>
                 </div>
+                <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+                  <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
+                    <div>
+                      <Label htmlFor="nome" className="text-gray-300">Nome Completo *</Label>
+                      <Input
+                        id="nome"
+                        name="nome"
+                        value={formData.nome}
+                        onChange={handleChange}
+                        required
+                        disabled={autoFilledFields.nome}
+                        className="mt-2 bg-gray-900/50 border-gray-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                      />
+                    </div>
 
-                <div>
-                  <Label htmlFor="equipamento" className="text-gray-300">Equipamento que Possui *</Label>
-                  <Textarea
-                    id="equipamento"
-                    name="equipamento"
-                    value={formData.equipamento}
-                    onChange={handleChange}
-                    required
-                    placeholder="Descreva seu equipamento (réplicas, proteção, uniforme, etc.)"
-                    rows={3}
-                    className="mt-2 bg-gray-900/50 border-gray-700 text-white"
-                  />
-                </div>
+                    <div>
+                      <Label htmlFor="email" className="text-gray-300">Email *</Label>
+                      <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        required
+                        disabled={autoFilledFields.email}
+                        className="mt-2 bg-gray-900/50 border-gray-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                      />
+                    </div>
 
-                <div>
-                  <Label htmlFor="disponibilidade" className="text-gray-300">Disponibilidade *</Label>
-                  <Textarea
-                    id="disponibilidade"
-                    name="disponibilidade"
-                    value={formData.disponibilidade}
-                    onChange={handleChange}
-                    required
-                    placeholder="Quando você está disponível para treinar e jogar?"
-                    rows={3}
-                    className="mt-2 bg-gray-900/50 border-gray-700 text-white"
-                  />
-                </div>
+                    <div>
+                      <Label htmlFor="telefone" className="text-gray-300">Telefone *</Label>
+                      <Input
+                        id="telefone"
+                        name="telefone"
+                        type="tel"
+                        value={formData.telefone}
+                        onChange={handleChange}
+                        required
+                        placeholder="(00) 00000-0000"
+                        className="mt-2 bg-gray-900/50 border-gray-700 text-white"
+                      />
+                    </div>
 
-                <div>
-                  <Label htmlFor="motivacao" className="text-gray-300">Por que deseja entrar para o GOST? *</Label>
-                  <Textarea
-                    id="motivacao"
-                    name="motivacao"
-                    value={formData.motivacao}
-                    onChange={handleChange}
-                    required
-                    placeholder="Conte-nos sua motivação e o que espera da equipe"
-                    rows={4}
-                    className="mt-2 bg-gray-900/50 border-gray-700 text-white"
-                  />
-                </div>
+                    <div>
+                      <Label htmlFor="idade" className="text-gray-300">Idade *</Label>
+                      <Input
+                        id="idade"
+                        name="idade"
+                        type="number"
+                        min="18"
+                        value={formData.idade}
+                        onChange={handleChange}
+                        required
+                        className="mt-2 bg-gray-900/50 border-gray-700 text-white"
+                      />
+                    </div>
 
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50"
-                >
-                  {loading ? (
-                    <>
-                      <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Enviando...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4 mr-2" />
-                      Enviar Inscrição
-                    </>
-                  )}
-                </Button>
-              </form>
+                    <div>
+                      <Label htmlFor="instagram" className="text-gray-300">Instagram</Label>
+                      <Input
+                        id="instagram"
+                        name="instagram"
+                        type="text"
+                        value={formData.instagram}
+                        onChange={handleChange}
+                        placeholder="@seu_usuario"
+                        className="mt-2 bg-gray-900/50 border-gray-700 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="cidade" className="text-gray-300">Cidade *</Label>
+                      <Input
+                        id="cidade"
+                        name="cidade"
+                        value={formData.cidade}
+                        onChange={handleChange}
+                        required
+                        className="mt-2 bg-gray-900/50 border-gray-700 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="experiencia" className="text-gray-300">Tempo de Experiência em Airsoft *</Label>
+                      <Input
+                        id="experiencia"
+                        name="experiencia"
+                        placeholder="Ex: 2 anos ou 3 meses"
+                        value={formData.experiencia}
+                        onChange={handleChange}
+                        required
+                        className="mt-2 bg-gray-900/50 border-gray-700 text-white"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Informe em anos ou meses (ex: "2 anos", "6 meses", "1 ano e 3 meses")</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="equipamento" className="text-gray-300">Equipamento que Possui *</Label>
+                    <Textarea
+                      id="equipamento"
+                      name="equipamento"
+                      value={formData.equipamento}
+                      onChange={handleChange}
+                      required
+                      placeholder="Descreva seu equipamento (réplicas, proteção, uniforme, etc.)"
+                      rows={3}
+                      className="mt-2 bg-gray-900/50 border-gray-700 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="disponibilidade" className="text-gray-300">Disponibilidade *</Label>
+                    <Textarea
+                      id="disponibilidade"
+                      name="disponibilidade"
+                      value={formData.disponibilidade}
+                      onChange={handleChange}
+                      required
+                      placeholder="Quando você está disponível para treinar e jogar?"
+                      rows={3}
+                      className="mt-2 bg-gray-900/50 border-gray-700 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="motivacao" className="text-gray-300">Por que deseja entrar para o GOST? *</Label>
+                    <Textarea
+                      id="motivacao"
+                      name="motivacao"
+                      value={formData.motivacao}
+                      onChange={handleChange}
+                      required
+                      placeholder="Conte-nos sua motivação e o que espera da equipe"
+                      rows={4}
+                      className="mt-2 bg-gray-900/50 border-gray-700 text-white"
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Enviar Inscrição
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </>
             )}
           </Card>
         )}
@@ -630,24 +745,24 @@ function MyRecrutamentoStatus({ recrutamento }: { recrutamento: Recrutamento }) 
             <div
               key={etapa.key}
               className={`p-3 sm:p-4 rounded-lg border-2 transition-all ${isCurrent && !isRejected
-                  ? 'bg-amber-600/20 border-amber-500/50'
-                  : isCompleted
-                    ? 'bg-green-600/10 border-green-500/30'
-                    : isRejected
-                      ? 'bg-red-600/10 border-red-500/30'
-                      : 'bg-gray-900/50 border-gray-700/50'
+                ? 'bg-amber-600/20 border-amber-500/50'
+                : isCompleted
+                  ? 'bg-green-600/10 border-green-500/30'
+                  : isRejected
+                    ? 'bg-red-600/10 border-red-500/30'
+                    : 'bg-gray-900/50 border-gray-700/50'
                 }`}
             >
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-start gap-2 sm:gap-3 flex-1 min-w-0">
                   <div
                     className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isCompleted
-                        ? 'bg-green-600/20 border-2 border-green-500'
-                        : isRejected
-                          ? 'bg-red-600/20 border-2 border-red-500'
-                          : isCurrent
-                            ? 'bg-amber-600/20 border-2 border-amber-500'
-                            : 'bg-gray-700/50 border-2 border-gray-600'
+                      ? 'bg-green-600/20 border-2 border-green-500'
+                      : isRejected
+                        ? 'bg-red-600/20 border-2 border-red-500'
+                        : isCurrent
+                          ? 'bg-amber-600/20 border-2 border-amber-500'
+                          : 'bg-gray-700/50 border-2 border-gray-600'
                       }`}
                   >
                     {getStatusIcon(status)}

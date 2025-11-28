@@ -1,24 +1,45 @@
+import axios from 'axios';
+import { equipeService } from './equipe.service';
+
 /**
- * Serviço para integração com n8n
- * Envia webhooks para workflows do n8n que processam envio de emails
+ * Normaliza os dados do email para garantir que todos os parâmetros obrigatórios estejam presentes
  */
-
-const getN8nUrl = (): string => {
-  // URL do n8n pode ser configurada via variável de ambiente
-  if (import.meta.env.VITE_N8N_URL) {
-    return import.meta.env.VITE_N8N_URL;
-  }
+async function normalizeEmailData(data: any): Promise<any> {
+  // Carregar dados da equipe uma vez e reutilizar
+  let equipeData: { nome?: string | null; significado_nome?: string | null; whatsapp_url?: string | null; instagram_url?: string | null } | null = null;
   
-  // Fallback para desenvolvimento local
-  if (import.meta.env.DEV) {
-    return 'http://localhost:5678';
+  try {
+    const equipeResponse = await equipeService.get();
+    if (equipeResponse.success && equipeResponse.data) {
+      equipeData = {
+        nome: equipeResponse.data.nome || null,
+        significado_nome: equipeResponse.data.significado_nome || null,
+        whatsapp_url: equipeResponse.data.whatsapp_url || null,
+        instagram_url: equipeResponse.data.instagram_url || null,
+      };
+    }
+  } catch (error) {
+    console.warn('Erro ao carregar dados da equipe para email:', error);
   }
-  
-  // Fallback para produção (ajuste conforme necessário)
-  return 'https://n8n.gosttactical.com.br';
-};
 
-const n8nBaseUrl = getN8nUrl();
+  // Garantir que todos os campos obrigatórios estejam presentes
+  return {
+    // Manter dados originais primeiro para compatibilidade
+    ...data,
+    // Garantir campos obrigatórios (sobrescrevem se não existirem)
+    nomeEquipe: data.nomeEquipe || equipeData?.nome || '',
+    significadoNome: data.significadoNome || equipeData?.significado_nome || '',
+    tipo: data.tipo || '',
+    id: data.id || '',
+    nome: data.nome || data.usuario?.name || data.contato?.nome || '',
+    email: data.email || data.usuario?.email || data.contato?.email || '',
+    status: data.status || '',
+    assunto: data.assunto || '', // Garantir que assunto esteja presente
+    linkWhatsApp: data.linkWhatsApp || equipeData?.whatsapp_url || '',
+    linkInstagram: data.linkInstagram || equipeData?.instagram_url || '',
+    timestamp: new Date().toISOString(),
+  };
+}
 
 /**
  * Envia webhook para n8n de forma assíncrona (não bloqueia a UI)
@@ -26,44 +47,31 @@ const n8nBaseUrl = getN8nUrl();
  */
 async function sendN8nWebhook(workflowId: string, data: any): Promise<void> {
   try {
-    const webhookUrl = `${n8nBaseUrl}/webhook/${workflowId}`;
-    
-    // Usa fetch com timeout para evitar bloqueios
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos timeout
-    
-    await fetch(webhookUrl, {
-      method: 'POST',
+    const webhookUrl = `${import.meta.env.VITE_N8N_URL}/${workflowId}`;
+
+    await axios.post(webhookUrl, data, {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data),
-      signal: controller.signal,
+      timeout: 5000,
     });
-    
-    clearTimeout(timeoutId);
   } catch (error) {
-    // Log silencioso - não queremos que falhas no n8n afetem a experiência do usuário
     console.warn('Erro ao enviar webhook para n8n:', error);
   }
 }
 
 export interface RecrutamentoEmailData {
   tipo: 'novo_recrutamento' | 'atualizacao_etapa';
-  recrutamento: {
-    id: string;
-    nome: string;
-    email: string;
-    telefone?: string | null;
-    etapa_atual?: string;
-    status_etapa?: 'aprovado' | 'reprovado' | 'pendente';
-    observacoes?: string | null;
-    responsavel?: {
-      id: string;
-      name: string;
-      email: string;
-    } | null;
-  };
+  id: string;
+  nome: string;
+  email: string;
+  status: string;
+  etapa?: string; // Nome da etapa para incluir no assunto
+  linkWhatsApp?: string | null;
+  linkInstagram?: string | null;
+  nomeEquipe?: string | null;
+  significadoNome?: string | null;
+  assunto?: string | null;
 }
 
 export interface PresencaEmailData {
@@ -101,11 +109,13 @@ export const n8nService = {
   async enviarEmailNovoRecrutamento(data: RecrutamentoEmailData): Promise<void> {
     // Workflow ID do n8n - configure conforme seu workflow
     const workflowId = import.meta.env.VITE_N8N_WORKFLOW_RECRUTAMENTO || 'recrutamento-novo';
-    
-    await sendN8nWebhook(workflowId, {
+
+    const normalizedData = await normalizeEmailData({
       ...data,
-      timestamp: new Date().toISOString(),
+      assunto: 'GOST - Recrutamento',
     });
+
+    await sendN8nWebhook(workflowId, normalizedData);
   },
 
   /**
@@ -115,25 +125,39 @@ export const n8nService = {
   async enviarEmailAtualizacaoRecrutamento(data: RecrutamentoEmailData): Promise<void> {
     // Workflow ID do n8n - configure conforme seu workflow
     const workflowId = import.meta.env.VITE_N8N_WORKFLOW_RECRUTAMENTO_ATUALIZACAO || 'recrutamento-atualizacao';
-    
-    await sendN8nWebhook(workflowId, {
+
+    // Incluir o nome da etapa no assunto se fornecido
+    const assunto = data.etapa 
+      ? `GOST - Recrutamento - ${data.etapa}`
+      : 'GOST - Recrutamento';
+
+    const normalizedData = await normalizeEmailData({
       ...data,
-      timestamp: new Date().toISOString(),
+      assunto,
     });
+
+    await sendN8nWebhook(workflowId, normalizedData);
   },
 
   /**
-   * Envia email quando um usuário confirma presença em um jogo
-   * Também agenda lembrete para 1 dia antes do jogo
+   * Envia email 1 dia antes do jogo para lembrar o usuário
+   * Este método deve ser chamado pelo backend/n8n quando agendar o lembrete
+   * Não é chamado imediatamente ao confirmar presença
    */
   async enviarEmailConfirmacaoPresenca(data: PresencaEmailData): Promise<void> {
     // Workflow ID do n8n - configure conforme seu workflow
     const workflowId = import.meta.env.VITE_N8N_WORKFLOW_PRESENCA || 'presenca-confirmacao';
-    
-    await sendN8nWebhook(workflowId, {
+
+    const normalizedData = await normalizeEmailData({
       ...data,
-      timestamp: new Date().toISOString(),
+      id: data.jogo.id,
+      nome: data.usuario.name || '',
+      email: data.usuario.email,
+      status: '',
+      assunto: 'GOST - Jogo agendado',
     });
+
+    await sendN8nWebhook(workflowId, normalizedData);
   },
 
   /**
@@ -143,11 +167,17 @@ export const n8nService = {
   async enviarEmailParceria(data: ParceriaEmailData): Promise<void> {
     // Workflow ID do n8n - configure conforme seu workflow
     const workflowId = import.meta.env.VITE_N8N_WORKFLOW_PARCERIA || 'parceria-mensagem';
-    
-    await sendN8nWebhook(workflowId, {
+
+    const normalizedData = await normalizeEmailData({
       ...data,
-      timestamp: new Date().toISOString(),
+      id: '',
+      nome: data.contato.nome,
+      email: data.contato.email,
+      status: '',
+      assunto: 'GOST - Parceria',
     });
+
+    await sendN8nWebhook(workflowId, normalizedData);
   },
 };
 

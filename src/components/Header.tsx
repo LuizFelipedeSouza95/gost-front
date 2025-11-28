@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Menu, X, Shield, ChevronDown, LogOut, User, Settings } from 'lucide-react';
 import { isAuthenticated, getUserInfo, logout } from '../utils/auth';
 
@@ -24,19 +25,21 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
   const [isAdmin, setIsAdmin] = useState(false);
 
   const mainMenuItems = [
-    { id: 'login', label: 'Login' },
-    { id: 'inicio', label: 'Início' },
+    // { id: 'login', label: 'Login' },
     { id: 'estatuto', label: 'Estatuto' },
-    { id: 'membros', label: 'Membros' },
+
     { id: 'calendario', label: 'Calendário' },
   ];
 
   const moreMenuItems = [
+    { id: 'inicio', label: 'Início' },
+
     { id: 'galeria', label: 'Galeria' },
-    { id: 'noticias', label: 'Notícias' },
+    { id: 'membros', label: 'Membros' },
+    // { id: 'noticias', label: 'Notícias' },
     // { id: 'faq', label: 'FAQ' },
     // { id: 'treinamento', label: 'Treinamento' },
-    { id: 'parceiros', label: 'Parceiros' },
+    // { id: 'parceiros', label: 'Parceiros' },
     // { id: 'mapa', label: 'Mapa' },
     { id: 'recrutamento', label: 'Recrutamento' },
   ];
@@ -134,11 +137,17 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
 
               {userDropdownOpen && (
                 <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setUserDropdownOpen(false)}
-                  />
-                  <div className="absolute top-full left-0 mt-2 w-56 bg-gray-800 border border-amber-600/30 rounded-lg shadow-xl z-20 py-2">
+                  {createPortal(
+                    <div
+                      className="fixed inset-0 z-[45]"
+                      onClick={() => setUserDropdownOpen(false)}
+                    />,
+                    document.body
+                  )}
+                  <div 
+                    className="absolute top-full left-0 mt-2 w-56 bg-gray-800 border border-amber-600/30 rounded-lg shadow-xl z-[60] py-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="px-4 py-3 border-b border-gray-700">
                       <p className="text-sm text-white font-medium">{userData.name || 'Usuário'}</p>
                       <p className="text-xs text-gray-400 truncate">{userData.email}</p>
@@ -178,12 +187,7 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
 
           <nav className="hidden lg:flex items-center gap-6">
             {mainMenuItems
-              .filter(item => {
-                if (!isLoggedIn) {
-                  return item.id === 'login' || item.id === 'inicio';
-                }
-                return item.id !== 'login';
-              })
+              .filter(item => item.id !== 'login')
               .map((item) => (
                 <button
                   key={item.id}
@@ -208,11 +212,17 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
 
               {dropdownOpen && (
                 <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setDropdownOpen(false)}
-                  />
-                  <div className="absolute top-full right-0 mt-2 w-48 bg-gray-800 border border-amber-600/30 rounded-lg shadow-xl z-20 py-2">
+                  {createPortal(
+                    <div
+                      className="fixed inset-0 z-[45]"
+                      onClick={() => setDropdownOpen(false)}
+                    />,
+                    document.body
+                  )}
+                  <div 
+                    className="absolute top-full right-0 mt-2 w-48 bg-gray-800 border border-amber-600/30 rounded-lg shadow-xl z-[60] py-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {moreMenuItems.map((item) => (
                       <button
                         key={item.id}
@@ -246,15 +256,21 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
       </div>
 
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-gray-800 border-t border-amber-600/30 max-h-[80vh] overflow-y-auto">
-          <nav className="px-4 py-4 space-y-2">
+        <>
+          {createPortal(
+            <div
+              className="fixed inset-0 bg-black/50 z-[45] lg:hidden"
+              onClick={() => setMobileMenuOpen(false)}
+            />,
+            document.body
+          )}
+          <div 
+            className="lg:hidden bg-gray-800 border-t border-amber-600/30 max-h-[80vh] overflow-y-auto relative z-[60]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <nav className="px-4 py-4 space-y-2">
             {allMenuItems
-              .filter(item => {
-                if (!isLoggedIn) {
-                  return item.id === 'login' || item.id === 'inicio';
-                }
-                return item.id !== 'login';
-              })
+              .filter(item => item.id !== 'login')
               .map((item) => (
                 <button
                   key={item.id}
@@ -295,7 +311,8 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
               </button>
             )}
           </nav>
-        </div>
+          </div>
+        </>
       )}
     </header>
   );

@@ -440,7 +440,7 @@ export function ConfiguracoesSection() {
 
           {/* Gestão da Equipe */}
           <TabsContent value="equipe">
-            <Card className="p-6 bg-gray-800/50 border-amber-600/30">
+            <Card className="p-6 bg-gray-800/50 border-amber-600/30 overflow-x-hidden">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl text-white">Gestão da Equipe</h2>
                 {!editingEquipe && (
@@ -537,20 +537,20 @@ export function ConfiguracoesSection() {
                     </div>
                   )}
                   {equipe.instagram_url && (
-                    <div>
+                    <div className="overflow-hidden w-full">
                       <label className="text-sm text-gray-400">Instagram</label>
-                      <p className="text-white">
-                        <a href={equipe.instagram_url} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:text-amber-300">
+                      <p className="text-white break-words w-full">
+                        <a href={equipe.instagram_url} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:text-amber-300 break-all w-full block">
                           {equipe.instagram_url}
                         </a>
                       </p>
                     </div>
                   )}
                   {equipe.whatsapp_url && (
-                    <div>
+                    <div className="overflow-hidden w-full">
                       <label className="text-sm text-gray-400">WhatsApp</label>
-                      <p className="text-white">
-                        <a href={equipe.whatsapp_url} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:text-amber-300">
+                      <p className="text-white break-words w-full">
+                        <a href={equipe.whatsapp_url} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:text-amber-300 break-all w-full block">
                           {equipe.whatsapp_url}
                         </a>
                       </p>

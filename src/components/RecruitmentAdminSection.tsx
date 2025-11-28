@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, CheckCircle, XCircle, Clock, User, Mail, Phone, MapPin, Calendar, MessageSquare, Vote, Users, Loader2 } from 'lucide-react';
+import { UserPlus, CheckCircle, XCircle, Clock, User, Mail, Phone, MapPin, Calendar, MessageSquare, Vote, Users, Loader2, Eye, FileText, X } from 'lucide-react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -8,22 +8,49 @@ import { recrutamentoService, type Recrutamento } from '../services/recrutamento
 import { usuariosService, type Usuario } from '../services/usuarios.service';
 import { getUserInfo } from '../utils/auth';
 import { n8nService } from '../services/n8n.service';
+import { equipeService } from '../services/equipe.service';
 
 type EtapaTipo = 'inscricao' | 'avaliacao' | 'qa' | 'votacao' | 'integracao';
 
 export function RecruitmentAdminSection() {
-  const [recrutamentos, setRecrutamentos] = useState<Recrutamento[]>([]);
-  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [recrutamentos, setRecrutamentos] = useState([] as Recrutamento[]);
+  const [usuarios, setUsuarios] = useState([] as Usuario[]);
   const [loading, setLoading] = useState(true);
-  const [selectedRecrutamento, setSelectedRecrutamento] = useState<Recrutamento | null>(null);
+  const [selectedRecrutamento, setSelectedRecrutamento] = useState(null as Recrutamento | null);
   const [showStageModal, setShowStageModal] = useState(false);
   const [showVoteModal, setShowVoteModal] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [filterStatus, setFilterStatus] = useState<string>('ativo');
+  const [showFormModal, setShowFormModal] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null as any);
+  const [filterStatus, setFilterStatus] = useState('ativo' as string);
+  const [equipeData, setEquipeData] = useState(null as { 
+    whatsapp_url?: string | null; 
+    instagram_url?: string | null;
+    nome?: string | null;
+    significado_nome?: string | null;
+  } | null);
 
   useEffect(() => {
     loadData();
   }, [filterStatus]);
+
+  useEffect(() => {
+    const loadEquipeData = async () => {
+      try {
+        const response = await equipeService.get();
+        if (response.success && response.data) {
+          setEquipeData({
+            whatsapp_url: response.data.whatsapp_url || null,
+            instagram_url: response.data.instagram_url || null,
+            nome: response.data.nome || null,
+            significado_nome: response.data.significado_nome || null,
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados da equipe:', error);
+      }
+    };
+    loadEquipeData();
+  }, []);
 
   const loadData = async () => {
     try {
@@ -59,25 +86,31 @@ export function RecruitmentAdminSection() {
       const response = await recrutamentoService.updateStage(recrutamentoId, etapa, status, observacoes);
       if (response.success) {
         toast.success(`Etapa ${getEtapaNome(etapa)} ${status === 'aprovado' ? 'aprovada' : 'reprovada'}!`);
-        
+
         // Enviar email via n8n para o candidato sobre a atualização
         const recrutamentoAtualizado = response.data;
+        // Mapear status da etapa para texto amigável
+        const statusEtapa = recrutamentoAtualizado[`etapa_${etapa}` as keyof Recrutamento] as string || status;
+        const statusTexto = statusEtapa === 'pendente' ? 'Em Análise' : statusEtapa === 'aprovado' ? 'Aprovado' : statusEtapa === 'reprovado' ? 'Reprovado' : statusEtapa;
+        const nomeEtapa = getEtapaNome(etapa);
+        // O normalizeEmailData no n8nService garante que todos os dados da equipe sejam incluídos
         n8nService.enviarEmailAtualizacaoRecrutamento({
           tipo: 'atualizacao_etapa',
-          recrutamento: {
-            id: recrutamentoAtualizado.id,
-            nome: recrutamentoAtualizado.nome,
-            email: recrutamentoAtualizado.email,
-            telefone: recrutamentoAtualizado.telefone,
-            etapa_atual: etapa,
-            status_etapa: status,
-            observacoes: observacoes || null,
-            responsavel: recrutamentoAtualizado.responsavel,
-          },
+          id: recrutamentoAtualizado.id,
+          nome: recrutamentoAtualizado.nome,
+          email: recrutamentoAtualizado.email,
+          status: statusTexto, // Status da etapa atualizada (Em Análise/Aprovado/Reprovado)
+          etapa: nomeEtapa, // Nome da etapa para incluir no assunto
+          // Os dados da equipe (nomeEquipe, significadoNome, linkWhatsApp, linkInstagram) 
+          // serão carregados automaticamente pelo normalizeEmailData no n8nService
+          linkWhatsApp: equipeData?.whatsapp_url || null,
+          linkInstagram: equipeData?.instagram_url || null,
+          nomeEquipe: equipeData?.nome || null,
+          significadoNome: equipeData?.significado_nome || null,
         }).catch((error) => {
           console.warn('Erro ao enviar email de atualização:', error);
         });
-        
+
         setShowStageModal(false);
         setSelectedRecrutamento(null);
         loadData();
@@ -139,8 +172,8 @@ export function RecruitmentAdminSection() {
     }
   };
 
-  const isComando = currentUser?.roles?.includes('admin') || 
-    currentUser?.patent === 'comando' || 
+  const isComando = currentUser?.roles?.includes('admin') ||
+    currentUser?.patent === 'comando' ||
     currentUser?.patent === 'sub_comando';
 
   if (loading) {
@@ -160,16 +193,15 @@ export function RecruitmentAdminSection() {
         </div>
 
         {/* Filtros */}
-        <div className="flex gap-4 mb-6">
+        <div className="flex flex-wrap gap-2 sm:gap-4 mb-6">
           {['ativo', 'aprovado', 'reprovado', 'cancelado'].map((status) => (
             <button
               key={status}
               onClick={() => setFilterStatus(status)}
-              className={`px-4 py-2 rounded-lg transition-all ${
-                filterStatus === status
-                  ? 'bg-amber-600 text-white'
-                  : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700'
-              }`}
+              className={`px-3 sm:px-4 py-2 rounded-lg transition-all text-sm sm:text-base whitespace-nowrap ${filterStatus === status
+                ? 'bg-amber-600 text-white'
+                : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700'
+                }`}
             >
               {status.charAt(0).toUpperCase() + status.slice(1)}
             </button>
@@ -248,10 +280,23 @@ export function RecruitmentAdminSection() {
                   <Button
                     onClick={() => {
                       setSelectedRecrutamento(recrutamento);
+                      setShowFormModal(true);
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="text-blue-400"
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    Visualizar Formulário
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setSelectedRecrutamento(recrutamento);
                       setShowStageModal(true);
                     }}
                     variant="outline"
                     size="sm"
+                    disabled={recrutamento.status === 'reprovado'}
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
                     Gerenciar Etapas
@@ -270,6 +315,7 @@ export function RecruitmentAdminSection() {
                       variant="outline"
                       size="sm"
                       className="text-purple-400"
+                      disabled={recrutamento.status === 'reprovado'}
                     >
                       <Vote className="w-4 h-4 mr-2" />
                       Votar
@@ -325,6 +371,17 @@ export function RecruitmentAdminSection() {
           }}
         />
       )}
+
+      {/* Modal de Visualização do Formulário */}
+      {showFormModal && selectedRecrutamento && (
+        <FormViewModal
+          recrutamento={selectedRecrutamento}
+          onClose={() => {
+            setShowFormModal(false);
+            setSelectedRecrutamento(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -339,9 +396,8 @@ function StageModal({
   onUpdate: (id: string, etapa: EtapaTipo, status: 'aprovado' | 'reprovado', observacoes?: string) => void;
   onClose: () => void;
 }) {
-  const [selectedEtapa, setSelectedEtapa] = useState<EtapaTipo>('avaliacao');
-  const [status, setStatus] = useState<'aprovado' | 'reprovado'>('aprovado');
-  const [observacoes, setObservacoes] = useState('');
+  const [selectedEtapa, setSelectedEtapa] = useState('avaliacao' as EtapaTipo);
+  const [status, setStatus] = useState('aprovado' as 'aprovado' | 'reprovado');
 
   const etapas: EtapaTipo[] = ['inscricao', 'avaliacao', 'qa', 'votacao', 'integracao'];
   const etapaNomes: Record<EtapaTipo, string> = {
@@ -353,18 +409,20 @@ function StageModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-      <Card className="bg-gray-900 border-gray-700 max-w-2xl w-full">
-        <div className="p-6">
-          <h2 className="text-2xl text-white mb-4">Gerenciar Etapas - {recrutamento.nome}</h2>
-          
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <Card className="bg-gray-900 border-gray-700 max-w-2xl w-full my-auto">
+        <div className="p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl md:text-2xl text-white mb-4 break-words">
+            Gerenciar Etapas - {recrutamento.nome}
+          </h2>
+
           <div className="space-y-4">
             <div>
               <label className="block text-sm text-gray-400 mb-2">Etapa</label>
               <select
                 value={selectedEtapa}
                 onChange={(e) => setSelectedEtapa(e.target.value as EtapaTipo)}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm sm:text-base"
               >
                 {etapas.map((etapa) => (
                   <option key={etapa} value={etapa}>
@@ -376,7 +434,7 @@ function StageModal({
 
             <div>
               <label className="block text-sm text-gray-400 mb-2">Status</label>
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
@@ -385,7 +443,7 @@ function StageModal({
                     onChange={() => setStatus('aprovado')}
                     className="w-4 h-4 text-green-600"
                   />
-                  <span className="text-white">Aprovado</span>
+                  <span className="text-white text-sm sm:text-base">Aprovado</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -395,30 +453,19 @@ function StageModal({
                     onChange={() => setStatus('reprovado')}
                     className="w-4 h-4 text-red-600"
                   />
-                  <span className="text-white">Reprovado</span>
+                  <span className="text-white text-sm sm:text-base">Reprovado</span>
                 </label>
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Observações (será enviado por email)</label>
-              <textarea
-                value={observacoes}
-                onChange={(e) => setObservacoes(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
-                rows={4}
-                placeholder="Observações sobre a decisão..."
-              />
-            </div>
-
-            <div className="flex gap-2 pt-4">
+            <div className="flex flex-col sm:flex-row gap-2 pt-4">
               <Button
-                onClick={() => onUpdate(recrutamento.id, selectedEtapa, status, observacoes)}
-                className="flex-1 bg-amber-600 hover:bg-amber-700"
+                onClick={() => onUpdate(recrutamento.id, selectedEtapa, status)}
+                className="w-full sm:flex-1 bg-amber-600 hover:bg-amber-700 text-sm sm:text-base"
               >
                 Salvar
               </Button>
-              <Button onClick={onClose} variant="outline" className="flex-1">
+              <Button onClick={onClose} variant="outline" className="w-full sm:flex-1 text-sm sm:text-base">
                 Cancelar
               </Button>
             </div>
@@ -440,7 +487,7 @@ function ResponsibleButton({
   onAssign: (id: string, responsavelId: string | null) => void;
 }) {
   const [showModal, setShowModal] = React.useState(false);
-  const [selectedResponsavel, setSelectedResponsavel] = React.useState<string>(recrutamento.responsavel?.id || '');
+  const [selectedResponsavel, setSelectedResponsavel] = React.useState(recrutamento.responsavel?.id || '' as string);
 
   return (
     <>
@@ -448,6 +495,7 @@ function ResponsibleButton({
         onClick={() => setShowModal(true)}
         variant="outline"
         size="sm"
+        disabled={recrutamento.status === 'reprovado'}
       >
         <User className="w-4 h-4 mr-2" />
         Atribuir Responsável
@@ -512,7 +560,7 @@ function VoteModal({
         <div className="p-6">
           <h2 className="text-2xl text-white mb-4">Votar - {recrutamento.nome}</h2>
           <p className="text-gray-400 mb-6">Registre seu voto para este candidato</p>
-          
+
           <div className="flex gap-2">
             <Button
               onClick={() => onVote(recrutamento.id, 'aprovado')}
@@ -529,10 +577,182 @@ function VoteModal({
               Reprovado
             </Button>
           </div>
-          
+
           <Button onClick={onClose} variant="outline" className="w-full mt-4">
             Cancelar
           </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// Modal de Visualização do Formulário
+function FormViewModal({
+  recrutamento,
+  onClose,
+}: {
+  recrutamento: Recrutamento;
+  onClose: () => void;
+}) {
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const checkDesktop = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+
+    checkDesktop();
+    window.addEventListener('resize', checkDesktop);
+    return () => window.removeEventListener('resize', checkDesktop);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-2 md:p-4 overflow-y-auto">
+      <Card
+        className="bg-gray-900 border-gray-700 w-[95vw] h-[50vh] max-h-[50vh] flex flex-col overflow-hidden md:w-[50vw] md:h-[70vh] md:max-h-[70vh]"
+        style={isDesktop ? { width: '50%', height: '70%' } : undefined}
+      >
+        <div className="p-2 sm:p-3 md:p-4 flex-shrink-0 border-b border-gray-700 relative">
+          <div className="flex items-center justify-between gap-1 sm:gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1 pr-1">
+              <FileText className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-blue-400 flex-shrink-0" />
+              <h2 className="text-xs sm:text-sm md:text-base lg:text-lg text-white truncate">
+                <span className="hidden sm:inline">Formulário de Cadastro - </span>
+                {recrutamento.nome}
+              </h2>
+            </div>
+            <Button
+              onClick={onClose}
+              variant="outline"
+              size="sm"
+              className="flex-shrink-0 px-1.5 sm:px-2 md:px-3 py-1 sm:py-1.5 md:py-2 min-w-[1.75rem] sm:min-w-[2rem] md:min-w-0 z-10"
+            >
+              <span className="hidden sm:inline text-xs sm:text-sm">Fechar</span>
+              <X className="sm:hidden w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto overscroll-contain p-2 sm:p-3 md:p-4 lg:p-6">
+          <div className="space-y-3">
+            {/* Informações Pessoais */}
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <h3 className="text-sm text-white mb-2 flex items-center gap-2">
+                <User className="w-4 h-4 text-amber-500" />
+                Informações Pessoais
+              </h3>
+              <div className="grid sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-gray-400">Nome Completo</label>
+                  <p className="text-sm text-white mt-0.5">{recrutamento.nome}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400">Email</label>
+                  <p className="text-sm text-white mt-0.5 flex items-center gap-1">
+                    <Mail className="w-3 h-3" />
+                    {recrutamento.email}
+                  </p>
+                </div>
+                {recrutamento.telefone && (
+                  <div>
+                    <label className="text-xs text-gray-400">Telefone</label>
+                    <p className="text-sm text-white mt-0.5 flex items-center gap-1">
+                      <Phone className="w-3 h-3" />
+                      {recrutamento.telefone}
+                    </p>
+                  </div>
+                )}
+                {recrutamento.idade && (
+                  <div>
+                    <label className="text-xs text-gray-400">Idade</label>
+                    <p className="text-sm text-white mt-0.5 flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      {recrutamento.idade} anos
+                    </p>
+                  </div>
+                )}
+                {recrutamento.cidade && (
+                  <div>
+                    <label className="text-xs text-gray-400">Cidade</label>
+                    <p className="text-sm text-white mt-0.5 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      {recrutamento.cidade}
+                    </p>
+                  </div>
+                )}
+                {recrutamento.instagram && (
+                  <div>
+                    <label className="text-xs text-gray-400">Instagram</label>
+                    <p className="text-sm text-white mt-0.5">@{recrutamento.instagram.replace('@', '')}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Experiência */}
+            {recrutamento.experiencia && (
+              <div className="bg-gray-800/50 rounded-lg p-3">
+                <h3 className="text-sm text-white mb-2 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-500" />
+                  Tempo de Experiência em Airsoft
+                </h3>
+                <p className="text-sm text-gray-300 whitespace-pre-wrap">{recrutamento.experiencia}</p>
+              </div>
+            )}
+
+            {/* Equipamento */}
+            {recrutamento.equipamento && (
+              <div className="bg-gray-800/50 rounded-lg p-3">
+                <h3 className="text-sm text-white mb-2 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-amber-500" />
+                  Equipamento que Possui
+                </h3>
+                <p className="text-sm text-gray-300 whitespace-pre-wrap">{recrutamento.equipamento}</p>
+              </div>
+            )}
+
+            {/* Disponibilidade */}
+            {recrutamento.disponibilidade && (
+              <div className="bg-gray-800/50 rounded-lg p-3">
+                <h3 className="text-sm text-white mb-2 flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-amber-500" />
+                  Disponibilidade
+                </h3>
+                <p className="text-sm text-gray-300 whitespace-pre-wrap">{recrutamento.disponibilidade}</p>
+              </div>
+            )}
+
+            {/* Motivação */}
+            {recrutamento.motivacao && (
+              <div className="bg-gray-800/50 rounded-lg p-3">
+                <h3 className="text-sm text-white mb-2 flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-amber-500" />
+                  Por que deseja entrar para o GOST?
+                </h3>
+                <p className="text-sm text-gray-300 whitespace-pre-wrap">{recrutamento.motivacao}</p>
+              </div>
+            )}
+
+            {/* Data de Inscrição */}
+            {recrutamento.createdAt && (
+              <div className="bg-gray-800/50 rounded-lg p-3">
+                <h3 className="text-sm text-white mb-2 flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-amber-500" />
+                  Data de Inscrição
+                </h3>
+                <p className="text-sm text-gray-300">
+                  {new Date(recrutamento.createdAt).toLocaleDateString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </Card>
     </div>
