@@ -47,7 +47,18 @@ async function normalizeEmailData(data: any): Promise<any> {
  */
 async function sendN8nWebhook(workflowId: string, data: any): Promise<void> {
   try {
-    const webhookUrl = `${import.meta.env.VITE_N8N_URL}/${workflowId}`;
+    const n8nBaseUrl = import.meta.env.VITE_N8N_URL;
+    
+    // Validar se a URL base está configurada
+    if (!n8nBaseUrl) {
+      console.error('VITE_N8N_URL não está configurada nas variáveis de ambiente');
+      return;
+    }
+    
+    // Garantir que a URL base não termine com barra e o workflowId não comece com barra
+    const baseUrl = n8nBaseUrl.endsWith('/') ? n8nBaseUrl.slice(0, -1) : n8nBaseUrl;
+    const cleanWorkflowId = workflowId.startsWith('/') ? workflowId.slice(1) : workflowId;
+    const webhookUrl = `${baseUrl}/${cleanWorkflowId}`;
 
     await axios.post(webhookUrl, data, {
       headers: {
