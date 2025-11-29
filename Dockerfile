@@ -34,23 +34,18 @@ ENV VITE_AZURE_STORAGE_ACCOUNT_NAME=$VITE_AZURE_STORAGE_ACCOUNT_NAME
 # Instala o Yarn globalmente (se necessário)
 RUN corepack enable
 
-# Copia package.json primeiro
+# Copia package.json e yarn.lock (se existir) primeiro
 COPY package.json ./
+COPY yarn.lock* ./
 
-# Copia yarn.lock se existir (será copiado no COPY . . abaixo se existir no contexto)
-# Por enquanto, instala sem --frozen-lockfile
-RUN yarn install
+# Instala dependências (usa --frozen-lockfile se yarn.lock existir)
+RUN test -f yarn.lock && yarn install --frozen-lockfile || yarn install
 
-# Copia o código-fonte completo (incluindo yarn.lock se existir no contexto)
+# Copia o código-fonte completo
 # Agora as variáveis VITE_ estarão disponíveis durante a build
 COPY . .
 
-# Se yarn.lock foi copiado, reinstala com --frozen-lockfile para garantir consistência
-RUN if [ -f yarn.lock ] && [ -s yarn.lock ]; then \
-        echo "yarn.lock encontrado, reinstalando com --frozen-lockfile para garantir consistência"; \
-        yarn install --frozen-lockfile; \
-    fi
-
+# Build da aplicação
 RUN yarn build 
 
 # ==================================================
