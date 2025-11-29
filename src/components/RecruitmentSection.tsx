@@ -174,25 +174,45 @@ export function RecruitmentSection() {
       });
 
       if (response.success) {
-        setSubmitted(true);
-        toast.success('Formulário enviado com sucesso! Um email de confirmação foi enviado.');
-
-        // Enviar emails via n8n para o candidato e para a equipe
         const recrutamentoCriado = response.data;
-        // Status inicial sempre "Em Análise" para novos recrutamentos
-        n8nService.enviarEmailNovoRecrutamento({
-          tipo: 'novo_recrutamento',
-          id: recrutamentoCriado.id,
-          nome: recrutamentoCriado.nome,
-          email: recrutamentoCriado.email,
-          status: 'Em Análise', // Status inicial sempre "Em Análise"
-          linkWhatsApp: equipeData?.whatsapp_url || null,
-          linkInstagram: equipeData?.instagram_url || null,
-          nomeEquipe: equipeData?.nome || null,
-          significadoNome: equipeData?.significado_nome || null,
-        }).catch((error) => {
-          console.warn('Erro ao enviar email de recrutamento:', error);
-        });
+        
+        // Enviar emails via n8n para o candidato e para a equipe
+        // IMPORTANTE: Aguardar o envio do email antes de mostrar sucesso
+        try {
+          console.log('Enviando email de recrutamento para:', recrutamentoCriado.email);
+          
+          await n8nService.enviarEmailNovoRecrutamento({
+            tipo: 'novo_recrutamento',
+            id: recrutamentoCriado.id,
+            nome: recrutamentoCriado.nome,
+            email: recrutamentoCriado.email,
+            status: 'Em Análise', // Status inicial sempre "Em Análise"
+            linkWhatsApp: equipeData?.whatsapp_url || null,
+            linkInstagram: equipeData?.instagram_url || null,
+            nomeEquipe: equipeData?.nome || null,
+            significadoNome: equipeData?.significado_nome || null,
+          });
+          
+          console.log('Email de recrutamento enviado com sucesso para:', recrutamentoCriado.email);
+          setSubmitted(true);
+          toast.success('Formulário enviado com sucesso! Um email de confirmação foi enviado.');
+        } catch (emailError: any) {
+          // Se o email falhar, ainda mostrar sucesso no formulário mas avisar sobre o email
+          console.error('Erro ao enviar email de recrutamento:', emailError);
+          setSubmitted(true);
+          toast.success('Formulário enviado com sucesso!', {
+            description: 'Porém, houve um problema ao enviar o email de confirmação. Entre em contato conosco se necessário.',
+            duration: 8000,
+          });
+          
+          // Log detalhado do erro para debug
+          console.error('Detalhes do erro de email:', {
+            email: recrutamentoCriado.email,
+            nome: recrutamentoCriado.nome,
+            erro: emailError.message || emailError,
+            stack: emailError.stack,
+          });
+        }
 
         // Recarregar status do recrutamento
         if (isLoggedIn) {

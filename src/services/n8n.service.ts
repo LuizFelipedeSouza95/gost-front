@@ -22,8 +22,16 @@ async function normalizeEmailData(data: any): Promise<any> {
     console.warn('Erro ao carregar dados da equipe para email:', error);
   }
 
+  // Extrair email de forma robusta
+  const email = (data.email || data.usuario?.email || data.contato?.email || '').trim();
+  
+  // Validar email antes de normalizar
+  if (!email) {
+    throw new Error('Email não encontrado nos dados fornecidos');
+  }
+
   // Garantir que todos os campos obrigatórios estejam presentes
-  return {
+  const normalized = {
     // Manter dados originais primeiro para compatibilidade
     ...data,
     // Garantir campos obrigatórios (sobrescrevem se não existirem)
@@ -31,43 +39,80 @@ async function normalizeEmailData(data: any): Promise<any> {
     significadoNome: data.significadoNome || equipeData?.significado_nome || '',
     tipo: data.tipo || '',
     id: data.id || '',
-    nome: data.nome || data.usuario?.name || data.contato?.nome || '',
-    email: data.email || data.usuario?.email || data.contato?.email || '',
+    nome: (data.nome || data.usuario?.name || data.contato?.nome || '').trim(),
+    email: email, // Email já validado acima
     status: data.status || '',
     assunto: data.assunto || '', // Garantir que assunto esteja presente
     linkWhatsApp: data.linkWhatsApp || equipeData?.whatsapp_url || '',
     linkInstagram: data.linkInstagram || equipeData?.instagram_url || '',
     timestamp: new Date().toISOString(),
   };
+
+  // Log para debug
+  console.log('Dados normalizados para email:', {
+    email: normalized.email,
+    nome: normalized.nome,
+    tipo: normalized.tipo,
+    assunto: normalized.assunto,
+  });
+
+  return normalized;
 }
 
 /**
- * Envia webhook para n8n de forma assíncrona (não bloqueia a UI)
- * Falhas são silenciosas para não impactar a experiência do usuário
+ * Envia webhook para n8n
+ * Agora lança erros para que possam ser tratados adequadamente
  */
 async function sendN8nWebhook(workflowId: string, data: any): Promise<void> {
-  try {
-    const n8nBaseUrl = import.meta.env.VITE_N8N_URL;
-    
-    // Validar se a URL base está configurada
-    if (!n8nBaseUrl) {
-      console.error('VITE_N8N_URL não está configurada nas variáveis de ambiente');
-      return;
-    }
-    
-    // Garantir que a URL base não termine com barra e o workflowId não comece com barra
-    const baseUrl = n8nBaseUrl.endsWith('/') ? n8nBaseUrl.slice(0, -1) : n8nBaseUrl;
-    const cleanWorkflowId = workflowId.startsWith('/') ? workflowId.slice(1) : workflowId;
-    const webhookUrl = `${baseUrl}/${cleanWorkflowId}`;
+  const n8nBaseUrl = import.meta.env.VITE_N8N_URL;
+  
+  // Validar se a URL base está configurada
+  if (!n8nBaseUrl) {
+    const error = new Error('VITE_N8N_URL não está configurada nas variáveis de ambiente');
+    console.error('Erro de configuração:', error);
+    throw error;
+  }
+  
+  // Garantir que a URL base não termine com barra e o workflowId não comece com barra
+  const baseUrl = n8nBaseUrl.endsWith('/') ? n8nBaseUrl.slice(0, -1) : n8nBaseUrl;
+  const cleanWorkflowId = workflowId.startsWith('/') ? workflowId.slice(1) : workflowId;
+  const webhookUrl = `${baseUrl}/${cleanWorkflowId}`;
 
-    await axios.post(webhookUrl, data, {
+  try {
+    console.log('Enviando webhook para n8n:', {
+      url: webhookUrl,
+      workflowId: cleanWorkflowId,
+      email: data.email,
+      tipo: data.tipo,
+    });
+
+    const response = await axios.post(webhookUrl, data, {
       headers: {
         'Content-Type': 'application/json',
       },
-      timeout: 5000,
+      timeout: 10000, // Aumentado para 10 segundos
     });
-  } catch (error) {
-    console.warn('Erro ao enviar webhook para n8n:', error);
+
+    console.log('Webhook enviado com sucesso:', {
+      status: response.status,
+      statusText: response.statusText,
+      email: data.email,
+    });
+  } catch (error: any) {
+    // Log detalhado do erro
+    console.error('Erro ao enviar webhook para n8n:', {
+      url: webhookUrl,
+      workflowId: cleanWorkflowId,
+      email: data.email,
+      tipo: data.tipo,
+      erro: error.message || error,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+    });
+    
+    // Lançar erro para que possa ser tratado pelo chamador
+    throw new Error(`Erro ao enviar email via n8n: ${error.message || 'Erro desconhecido'}`);
   }
 }
 
@@ -118,13 +163,33 @@ export const n8nService = {
    * Envia para o candidato e para a equipe
    */
   async enviarEmailNovoRecrutamento(data: RecrutamentoEmailData): Promise<void> {
+    // Validar email antes de enviar
+    if (!data.email || !data.email.trim()) {
+      throw new Error('Email não fornecido para envio de confirmação');
+    }
+
+    // Validar formato básico de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(data.email.trim())) {
+      throw new Error(`Email inválido: ${data.email}`);
+    }
+
     // Workflow ID do n8n - configure conforme seu workflow
     const workflowId = import.meta.env.VITE_N8N_WORKFLOW_RECRUTAMENTO || 'recrutamento-novo';
+
+    if (!workflowId) {
+      throw new Error('VITE_N8N_WORKFLOW_RECRUTAMENTO não está configurado');
+    }
 
     const normalizedData = await normalizeEmailData({
       ...data,
       assunto: 'GOST - Recrutamento',
     });
+
+    // Validar novamente após normalização
+    if (!normalizedData.email || !normalizedData.email.trim()) {
+      throw new Error('Email não encontrado após normalização dos dados');
+    }
 
     await sendN8nWebhook(workflowId, normalizedData);
   },

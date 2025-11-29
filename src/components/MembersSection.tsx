@@ -5,6 +5,7 @@ import { Badge } from './ui/badge';
 import { usuariosService, type Usuario } from '../services/usuarios.service';
 import { toast } from 'sonner';
 
+
 interface Squad {
   id: string;
   nome: string;
@@ -29,6 +30,7 @@ interface HierarchyLevel {
 export function MembersSection() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadMembros();
@@ -41,8 +43,13 @@ export function MembersSection() {
       const response = await usuariosService.list(1, 100, false);
       if (response.success && response.data) {
         // Filtrar apenas membros ativos que foram cadastrados como membros oficiais pelos admins
+        // OU que tenham patente de organização
         const membrosAtivos = response.data.filter(u => 
-          u.active && u.roles?.includes('membro_oficial')
+          u.active && (
+            u.roles?.includes('membro_oficial') || 
+            u.patent === 'organizacao' || 
+            u.patent === 'organização'
+          )
         );
         setUsuarios(membrosAtivos);
       }
@@ -60,11 +67,15 @@ export function MembersSection() {
   };
 
   // Agrupar membros por patente/hierarquia com ordenação correta
-  const getHierarchyLevel = (patent?: string): HierarchyLevel => {
+  const getHierarchyLevel = (patent?: string, roles?: string[]): HierarchyLevel => {
+    // Verificar se tem role de organização
+    const isOrganizacao = roles?.includes('organizacao') || roles?.includes('organização');
+    
     switch (patent) {
       case 'comando':
+      case 'sub_comando':
         return {
-          rank: 'Comando-Geral',
+          rank: 'Diretoria',
           icon: Shield,
           color: 'text-red-500',
           bgColor: 'bg-red-600/20',
@@ -72,13 +83,14 @@ export function MembersSection() {
           order: 1,
           members: []
         };
-      case 'sub_comando':
+      case 'organizacao':
+      case 'organização':
         return {
-          rank: 'Subcomando',
-          icon: Star,
-          color: 'text-amber-500',
-          bgColor: 'bg-amber-600/20',
-          borderColor: 'border-amber-500/50',
+          rank: 'Organização',
+          icon: Award,
+          color: 'text-purple-500',
+          bgColor: 'bg-purple-600/20',
+          borderColor: 'border-purple-500/50',
           order: 2,
           members: []
         };
@@ -113,6 +125,18 @@ export function MembersSection() {
           members: []
         };
       default:
+        // Se não tem patente mas tem role de organização, colocar em Organização
+        if (isOrganizacao) {
+          return {
+            rank: 'Organização',
+            icon: Award,
+            color: 'text-purple-500',
+            bgColor: 'bg-purple-600/20',
+            borderColor: 'border-purple-500/50',
+            order: 2,
+            members: []
+          };
+        }
         return {
           rank: 'Sem Patente',
           icon: User,
@@ -126,7 +150,22 @@ export function MembersSection() {
   };
 
   const groupedMembers = usuarios.reduce((acc, usuario) => {
-    const level = getHierarchyLevel(usuario.patent);
+    // Verificar se tem role de organização primeiro
+    const isOrganizacao = usuario.roles?.includes('organizacao') || usuario.roles?.includes('organização');
+    
+    // Para comando e sub_comando, agrupar ambos em "Diretoria"
+    let patentKey = usuario.patent;
+    if (usuario.patent === 'comando' || usuario.patent === 'sub_comando') {
+      patentKey = 'comando'; // Usar 'comando' como chave para agrupar ambos
+    } else if (usuario.patent === 'organizacao' || usuario.patent === 'organização') {
+      // Se tem patente de organização, usar 'organizacao'
+      patentKey = 'organizacao';
+    } else if (isOrganizacao && !usuario.patent) {
+      // Se não tem patente mas tem role de organização, usar 'organizacao'
+      patentKey = 'organizacao';
+    }
+    
+    const level = getHierarchyLevel(patentKey, usuario.roles);
     const key = level.rank;
 
     if (!acc[key]) {
@@ -203,33 +242,49 @@ export function MembersSection() {
 
               {level.members.length > 0 ? (
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {level.members.map((member) => (
-                    <div
-                      key={member.id}
-                      className="p-4 bg-gray-900/50 rounded-lg border border-gray-700/50 hover:border-gray-600 transition-colors"
-                    >
-                      <div className="flex items-center gap-3 mb-2">
-                        {member.picture ? (
-                          <img
-                            src={member.picture}
-                            alt={member.name}
-                            className="w-10 h-10 rounded-full object-cover border-2 border-amber-600/50"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center border-2 border-amber-600/50">
-                            <User className="w-5 h-5 text-gray-400" />
+                  {level.members.map((member) => {
+                    const hasPicture = member.picture && member.picture.trim().length > 0;
+                    const imageFailed = imageErrors.has(member.id);
+                    return (
+                      <div
+                        key={member.id}
+                        className="p-4 bg-gray-900/50 rounded-lg border border-gray-700/50 hover:border-gray-600 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 mb-2">
+                          {hasPicture && !imageFailed ? (
+                            <img
+                              src={member.picture!}
+                              alt={member.name}
+                              className="w-10 h-10 rounded-full object-cover border-2 border-amber-600/50 flex-shrink-0"
+                              referrerPolicy="no-referrer"
+                              crossOrigin="anonymous"
+                              loading="lazy"
+                              onError={() => {
+                                // Marcar como erro apenas após falha real
+                                setImageErrors(prev => new Set(prev).add(member.id));
+                              }}
+                              onLoad={() => {
+                                // Se carregou com sucesso, garantir que não está no set de erros
+                                setImageErrors(prev => {
+                                  const newSet = new Set(prev);
+                                  newSet.delete(member.id);
+                                  return newSet;
+                                });
+                              }}
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center border-2 border-amber-600/50 flex-shrink-0">
+                              <User className="w-5 h-5 text-gray-400" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-white font-semibold truncate">{member.name}</h3>
+                            <p className="text-xs text-gray-400 capitalize">{member.role}</p>
                           </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-white font-semibold truncate">{member.name}</h3>
-                          <p className="text-xs text-gray-400 capitalize">{member.role}</p>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-gray-400 text-center py-4">Nenhum membro nesta categoria</p>

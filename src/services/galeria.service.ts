@@ -1,4 +1,5 @@
 import { api } from './api';
+import { azureBlobService } from './azure-blob.service';
 
 export interface Galeria {
   id: string;
@@ -36,7 +37,7 @@ export const galeriaService = {
   },
 
   /**
-   * Adiciona uma nova imagem via upload de arquivo
+   * Adiciona uma nova imagem via upload para Azure Blob Storage
    */
   create: async (
     file: File,
@@ -49,32 +50,79 @@ export const galeriaService = {
       nome_operacao?: string;
       data_operacao?: string;
       album?: string;
+      thumbnail_url?: string;
     }
   ): Promise<{ success: boolean; data: Galeria }> => {
-    const formData = new FormData();
-    formData.append('image', file);
-    
-    if (data.descricao) formData.append('descricao', data.descricao);
-    if (data.titulo) formData.append('titulo', data.titulo);
-    if (data.jogo_id) formData.append('jogo_id', data.jogo_id);
-    if (data.categoria) formData.append('categoria', data.categoria);
-    if (data.is_operacao !== undefined) formData.append('is_operacao', data.is_operacao.toString());
-    if (data.nome_operacao) formData.append('nome_operacao', data.nome_operacao);
-    if (data.data_operacao) formData.append('data_operacao', data.data_operacao);
-    if (data.album) formData.append('album', data.album);
+    try {
+      // 1. Upload da imagem principal para Azure Blob Storage
+      const imagemUrl = await azureBlobService.uploadImage(file, 'galeria');
 
-    return api.post('/api/galeria', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+      // 2. Usar thumbnail_url fornecido ou a própria imagem como thumbnail
+      const thumbnailUrl = data.thumbnail_url || imagemUrl;
+
+      // 3. Enviar metadados para o backend
+      const payload = {
+        imagem_url: imagemUrl,
+        thumbnail_url: thumbnailUrl,
+        descricao: data.descricao,
+        titulo: data.titulo,
+        jogo_id: data.jogo_id,
+        categoria: data.categoria,
+        is_operacao: data.is_operacao,
+        nome_operacao: data.nome_operacao,
+        data_operacao: data.data_operacao,
+        album: data.album,
+      };
+
+      return api.post('/api/galeria', payload, { requireAuth: true });
+    } catch (error: any) {
+      console.error('Erro ao fazer upload da imagem:', error);
+      throw new Error(error.message || 'Erro ao fazer upload da imagem');
+    }
   },
 
   /**
-   * Deleta uma imagem
+   * Atualiza uma imagem existente
    */
-  delete: async (id: string): Promise<{ success: boolean; message: string }> => {
-    return api.delete(`/api/galeria/${id}`, { requireAuth: true });
+  update: async (
+    id: string,
+    data: {
+      descricao?: string;
+      titulo?: string;
+      jogo_id?: string;
+      categoria?: string;
+      is_operacao?: boolean;
+      nome_operacao?: string;
+      data_operacao?: string;
+      album?: string;
+      thumbnail_url?: string;
+    }
+  ): Promise<{ success: boolean; data: Galeria }> => {
+    return api.put(`/api/galeria/${id}`, data, { requireAuth: true });
+  },
+
+  /**
+   * Deleta uma imagem (remove do Azure Blob Storage e do banco)
+   */
+  delete: async (id: string, imagemUrl?: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      // 1. Deletar do backend (que também deleta do Azure se necessário)
+      const response = await api.delete(`/api/galeria/${id}`, { requireAuth: true }) as { success: boolean; message: string };
+
+      // 2. Se o backend não deletar do Azure, deletar diretamente
+      if (imagemUrl && imagemUrl.includes('blob.core.windows.net')) {
+        try {
+          await azureBlobService.deleteImage(imagemUrl);
+        } catch (blobError) {
+          console.warn('Erro ao deletar do Azure Blob Storage (pode já ter sido deletado):', blobError);
+        }
+      }
+
+      return response;
+    } catch (error: any) {
+      console.error('Erro ao deletar imagem:', error);
+      throw error;
+    }
   },
 };
 

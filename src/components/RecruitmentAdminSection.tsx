@@ -284,10 +284,11 @@ export function RecruitmentAdminSection() {
                     }}
                     variant="outline"
                     size="sm"
-                    className="text-blue-400"
+                    className="text-blue-400 whitespace-nowrap"
                   >
-                    <Eye className="w-4 h-4 mr-2" />
-                    Visualizar Formulário
+                    <Eye className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span className="hidden sm:inline">Visualizar Formulário</span>
+                    <span className="sm:hidden">Ver</span>
                   </Button>
                   <Button
                     onClick={() => {
@@ -297,9 +298,11 @@ export function RecruitmentAdminSection() {
                     variant="outline"
                     size="sm"
                     disabled={recrutamento.status === 'reprovado'}
+                    className="whitespace-nowrap"
                   >
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Gerenciar Etapas
+                    <CheckCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span className="hidden sm:inline">Gerenciar Etapas</span>
+                    <span className="sm:hidden">Etapas</span>
                   </Button>
                   <ResponsibleButton
                     recrutamento={recrutamento}
@@ -409,10 +412,16 @@ function StageModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <Card className="bg-gray-900 border-gray-700 max-w-2xl w-full my-auto">
-        <div className="p-4 sm:p-6">
-          <h2 className="text-lg sm:text-xl md:text-2xl text-white mb-4 break-words">
+    <div 
+      className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <Card 
+        className="bg-gray-900 border-gray-700 max-w-2xl w-full my-auto mx-2 sm:mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 sm:p-6 overflow-hidden">
+          <h2 className="text-lg sm:text-xl md:text-2xl text-white mb-4 break-words pr-8">
             Gerenciar Etapas - {recrutamento.nome}
           </h2>
 
@@ -441,7 +450,7 @@ function StageModal({
                     value="aprovado"
                     checked={status === 'aprovado'}
                     onChange={() => setStatus('aprovado')}
-                    className="w-4 h-4 text-green-600"
+                    className="w-4 h-4 text-green-600 flex-shrink-0"
                   />
                   <span className="text-white text-sm sm:text-base">Aprovado</span>
                 </label>
@@ -451,21 +460,27 @@ function StageModal({
                     value="reprovado"
                     checked={status === 'reprovado'}
                     onChange={() => setStatus('reprovado')}
-                    className="w-4 h-4 text-red-600"
+                    className="w-4 h-4 text-red-600 flex-shrink-0"
                   />
                   <span className="text-white text-sm sm:text-base">Reprovado</span>
                 </label>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2 pt-4">
+            <div className="flex flex-row gap-2 pt-4 justify-end">
               <Button
                 onClick={() => onUpdate(recrutamento.id, selectedEtapa, status)}
-                className="w-full sm:flex-1 bg-amber-600 hover:bg-amber-700 text-sm sm:text-base"
+                size="sm"
+                className="px-3 py-1 text-xs bg-amber-600 hover:bg-amber-700 whitespace-nowrap"
               >
                 Salvar
               </Button>
-              <Button onClick={onClose} variant="outline" className="w-full sm:flex-1 text-sm sm:text-base">
+              <Button 
+                onClick={onClose} 
+                variant="outline" 
+                size="sm"
+                className="px-3 py-1 text-xs whitespace-nowrap"
+              >
                 Cancelar
               </Button>
             </div>
@@ -489,6 +504,11 @@ function ResponsibleButton({
   const [showModal, setShowModal] = React.useState(false);
   const [selectedResponsavel, setSelectedResponsavel] = React.useState(recrutamento.responsavel?.id || '' as string);
 
+  // Filtrar apenas membros do comando
+  const membrosComando = usuarios.filter(
+    (usuario) => usuario.patent === 'comando' || usuario.patent === 'sub_comando'
+  );
+
   return (
     <>
       <Button
@@ -496,42 +516,58 @@ function ResponsibleButton({
         variant="outline"
         size="sm"
         disabled={recrutamento.status === 'reprovado'}
+        className="whitespace-nowrap"
       >
-        <User className="w-4 h-4 mr-2" />
-        Atribuir Responsável
+        <User className="w-4 h-4 mr-2 flex-shrink-0" />
+        <span className="hidden sm:inline">Atribuir Responsável</span>
+        <span className="sm:hidden">Responsável</span>
       </Button>
       {showModal && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <Card className="bg-gray-900 border-gray-700 max-w-md w-full">
-            <div className="p-6">
-              <h2 className="text-2xl text-white mb-4">Atribuir Responsável</h2>
+        <div 
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
+          onClick={() => setShowModal(false)}
+        >
+          <Card 
+            className="bg-gray-900 border-gray-700 max-w-2xl w-full my-auto mx-2 sm:mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 sm:p-6 overflow-hidden">
+              <h2 className="text-lg sm:text-xl md:text-2xl text-white mb-4 break-words pr-8">
+                Atribuir Responsável - {recrutamento.nome}
+              </h2>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm text-gray-400 mb-2">Responsável</label>
                   <select
                     value={selectedResponsavel}
                     onChange={(e) => setSelectedResponsavel(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm sm:text-base"
                   >
                     <option value="">Nenhum</option>
-                    {usuarios.map((usuario) => (
+                    {membrosComando.map((usuario) => (
                       <option key={usuario.id} value={usuario.id}>
                         {usuario.nome_guerra || usuario.name || usuario.email}
                       </option>
                     ))}
                   </select>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-row gap-2 pt-4 justify-end">
                   <Button
                     onClick={() => {
                       onAssign(recrutamento.id, selectedResponsavel || null);
                       setShowModal(false);
                     }}
-                    className="flex-1 bg-amber-600 hover:bg-amber-700"
+                    size="sm"
+                    className="px-3 py-1 text-xs bg-amber-600 hover:bg-amber-700 whitespace-nowrap"
                   >
                     Salvar
                   </Button>
-                  <Button onClick={() => setShowModal(false)} variant="outline" className="flex-1">
+                  <Button 
+                    onClick={() => setShowModal(false)} 
+                    variant="outline" 
+                    size="sm"
+                    className="px-3 py-1 text-xs whitespace-nowrap"
+                  >
                     Cancelar
                   </Button>
                 </div>
@@ -555,32 +591,49 @@ function VoteModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-      <Card className="bg-gray-900 border-gray-700 max-w-md w-full">
-        <div className="p-6">
-          <h2 className="text-2xl text-white mb-4">Votar - {recrutamento.nome}</h2>
-          <p className="text-gray-400 mb-6">Registre seu voto para este candidato</p>
+    <div 
+      className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <Card 
+        className="bg-gray-900 border-gray-700 max-w-2xl w-full my-auto mx-2 sm:mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 sm:p-6 overflow-hidden">
+          <h2 className="text-lg sm:text-xl md:text-2xl text-white mb-4 break-words pr-8">
+            Votar - {recrutamento.nome}
+          </h2>
+          <p className="text-gray-400 mb-6 text-sm sm:text-base">Registre seu voto para este candidato</p>
 
-          <div className="flex gap-2">
+          <div className="flex flex-row gap-2 mb-4 justify-end">
             <Button
               onClick={() => onVote(recrutamento.id, 'aprovado')}
-              className="flex-1 bg-green-600 hover:bg-green-700"
+              size="sm"
+              className="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 whitespace-nowrap"
             >
-              <CheckCircle className="w-4 h-4 mr-2" />
+              <CheckCircle className="w-4 h-4 mr-2 flex-shrink-0" />
               Aprovar
             </Button>
             <Button
               onClick={() => onVote(recrutamento.id, 'reprovado')}
-              className="flex-1 bg-red-600 hover:bg-red-700"
+              size="sm"
+              className="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 whitespace-nowrap"
             >
-              <XCircle className="w-4 h-4 mr-2" />
+              <XCircle className="w-4 h-4 mr-2 flex-shrink-0" />
               Reprovado
             </Button>
           </div>
 
-          <Button onClick={onClose} variant="outline" className="w-full mt-4">
-            Cancelar
-          </Button>
+          <div className="flex flex-row gap-2 pt-4 justify-end">
+            <Button 
+              onClick={onClose} 
+              variant="outline" 
+              size="sm"
+              className="px-3 py-1 text-xs whitespace-nowrap"
+            >
+              Cancelar
+            </Button>
+          </div>
         </div>
       </Card>
     </div>
@@ -595,30 +648,22 @@ function FormViewModal({
   recrutamento: Recrutamento;
   onClose: () => void;
 }) {
-  const [isDesktop, setIsDesktop] = useState(false);
-
-  useEffect(() => {
-    const checkDesktop = () => {
-      setIsDesktop(window.innerWidth >= 768);
-    };
-
-    checkDesktop();
-    window.addEventListener('resize', checkDesktop);
-    return () => window.removeEventListener('resize', checkDesktop);
-  }, []);
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-2 md:p-4 overflow-y-auto">
+    <div 
+      className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-2 md:p-4"
+      onClick={onClose}
+    >
       <Card
-        className="bg-gray-900 border-gray-700 w-[95vw] h-[50vh] max-h-[50vh] flex flex-col overflow-hidden md:w-[50vw] md:h-[70vh] md:max-h-[70vh]"
-        style={isDesktop ? { width: '50%', height: '70%' } : undefined}
+        className="bg-gray-900 border-gray-700 w-full max-w-[95vw] h-[55vh] flex flex-col md:w-[50vw] md:h-[60vh] my-auto"
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-2 sm:p-3 md:p-4 flex-shrink-0 border-b border-gray-700 relative">
-          <div className="flex items-center justify-between gap-1 sm:gap-2">
-            <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1 pr-1">
-              <FileText className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-blue-400 flex-shrink-0" />
-              <h2 className="text-xs sm:text-sm md:text-base lg:text-lg text-white truncate">
-                <span className="hidden sm:inline">Formulário de Cadastro - </span>
+        <div className="p-2 sm:p-3 flex-shrink-0 border-b border-gray-700 bg-gray-900">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 pr-2">
+              <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400 flex-shrink-0" />
+              <h2 className="text-xs sm:text-sm md:text-base text-white truncate">
+                <span className="hidden sm:inline">Formulário - </span>
                 {recrutamento.nome}
               </h2>
             </div>
@@ -626,15 +671,14 @@ function FormViewModal({
               onClick={onClose}
               variant="outline"
               size="sm"
-              className="flex-shrink-0 px-1.5 sm:px-2 md:px-3 py-1 sm:py-1.5 md:py-2 min-w-[1.75rem] sm:min-w-[2rem] md:min-w-0 z-10"
+              className="flex-shrink-0 px-2 py-1 h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center"
             >
-              <span className="hidden sm:inline text-xs sm:text-sm">Fechar</span>
-              <X className="sm:hidden w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </Button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain p-2 sm:p-3 md:p-4 lg:p-6">
+        <div className="flex-1 overflow-y-auto p-2 sm:p-3 md:p-4" style={{ maxHeight: 'calc(55vh - 60px)' }}>
           <div className="space-y-3">
             {/* Informações Pessoais */}
             <div className="bg-gray-800/50 rounded-lg p-3">
