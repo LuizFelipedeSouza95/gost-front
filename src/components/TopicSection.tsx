@@ -161,7 +161,11 @@ const defaultTopics: EstatutoTopic[] = [
   }
 ];
 
-export function TopicSection() {
+interface TopicSectionProps {
+  setActiveSection?: (section: string) => void;
+}
+
+export function TopicSection({ setActiveSection }: TopicSectionProps = {}) {
   const [estatuto, setEstatuto] = useState<EstatutoInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -191,7 +195,17 @@ export function TopicSection() {
     return iconMap[iconName] || Shield;
   };
 
-  // Função para detectar URLs e quebras de linha no texto
+  // Função para navegar para o calendário
+  const navigateToCalendar = () => {
+    if (setActiveSection) {
+      setActiveSection('calendario');
+    } else {
+      // Fallback: dispara evento customizado para mudança de seção
+      window.dispatchEvent(new CustomEvent('changeSection', { detail: 'calendario' }));
+    }
+  };
+
+  // Função para detectar URLs e links para calendário no texto
   const renderTextWithLinks = (text: string): React.ReactNode => {
     if (!text) return null;
 
@@ -201,16 +215,67 @@ export function TopicSection() {
     return (
       <>
         {lines.map((line, lineIndex) => {
-          // Processa URLs em cada linha
-          const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)/gi;
           const parts: React.ReactNode[] = [];
+          let processedLine = line;
           let lastIndex = 0;
+
+          // Padrões para detectar links para calendário (case-insensitive e com acentos opcionais)
+          const calendarPatterns = [
+            { pattern: /clique aqui para direcionar para o calend[áa]rio/gi, text: 'clique aqui para direcionar para o calendário' },
+            { pattern: /clique aqui para ver o calend[áa]rio/gi, text: 'clique aqui para ver o calendário' },
+            { pattern: /clique aqui para acessar o calend[áa]rio/gi, text: 'clique aqui para acessar o calendário' },
+            { pattern: /veja o calend[áa]rio/gi, text: 'veja o calendário' },
+            { pattern: /acesse o calend[áa]rio/gi, text: 'acesse o calendário' },
+            { pattern: /encontrado no calend[áa]rio/gi, text: 'encontrado no calendário' },
+            { pattern: /no calend[áa]rio/gi, text: 'no calendário' },
+            { pattern: /calend[áa]rio/gi, text: 'calendário' },
+          ];
+
+          // Procura por padrões de calendário primeiro
+          let calendarMatch: { index: number; length: number; text: string } | null = null;
+          for (const { pattern, text } of calendarPatterns) {
+            const match = pattern.exec(processedLine);
+            if (match && (!calendarMatch || match.index < calendarMatch.index)) {
+              calendarMatch = {
+                index: match.index,
+                length: match[0].length,
+                text: text
+              };
+            }
+          }
+
+          // Se encontrou padrão de calendário, cria link
+          if (calendarMatch) {
+            // Adiciona texto antes do padrão
+            if (calendarMatch.index > lastIndex) {
+              parts.push(processedLine.substring(lastIndex, calendarMatch.index));
+            }
+
+            // Adiciona link clicável para calendário
+            parts.push(
+              <button
+                key={`calendar-${lineIndex}-${calendarMatch.index}`}
+                onClick={navigateToCalendar}
+                className="text-blue-400 hover:text-blue-300 underline transition-colors cursor-pointer"
+              >
+                {processedLine.substring(calendarMatch.index, calendarMatch.index + calendarMatch.length)}
+              </button>
+            );
+
+            lastIndex = calendarMatch.index + calendarMatch.length;
+          }
+
+          // Processa URLs no texto restante (após o padrão de calendário, se encontrado)
+          const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)/gi;
           let match;
 
-          while ((match = urlRegex.exec(line)) !== null) {
+          // Reset regex lastIndex para processar a partir do lastIndex atual
+          urlRegex.lastIndex = lastIndex;
+          
+          while ((match = urlRegex.exec(processedLine)) !== null) {
             // Adiciona o texto antes da URL
             if (match.index > lastIndex) {
-              parts.push(line.substring(lastIndex, match.index));
+              parts.push(processedLine.substring(lastIndex, match.index));
             }
 
             // Prepara a URL para o link
@@ -223,7 +288,7 @@ export function TopicSection() {
             // Adiciona o link clicável
             parts.push(
               <a
-                key={`${lineIndex}-${match.index}`}
+                key={`url-${lineIndex}-${match.index}`}
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -236,13 +301,13 @@ export function TopicSection() {
             lastIndex = urlRegex.lastIndex;
           }
 
-          // Adiciona o texto restante após a última URL
-          if (lastIndex < line.length) {
-            parts.push(line.substring(lastIndex));
+          // Adiciona o texto restante após a última URL ou padrão
+          if (lastIndex < processedLine.length) {
+            parts.push(processedLine.substring(lastIndex));
           }
 
-          // Se não encontrou URLs, usa o texto da linha completo
-          const lineContent = parts.length > 0 ? <>{parts}</> : line;
+          // Se não encontrou URLs nem padrões, usa o texto da linha completo
+          const lineContent = parts.length > 0 ? <>{parts}</> : processedLine;
 
           // Renderiza a linha com quebra de linha após (exceto na última linha)
           return (

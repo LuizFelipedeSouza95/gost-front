@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UsersRound, Building2, Shield, Edit, Trash2, Plus, Save, X, FileText, ChevronDown, ChevronUp, UserPlus, Newspaper, Loader2, Calendar, User, Tag, Handshake, Mail, Phone, Image as ImageIcon, Folder, Upload, ArrowLeft } from 'lucide-react';
+import { Users, UsersRound, Building2, Shield, Edit, Trash2, Plus, Save, X, FileText, ChevronDown, ChevronUp, UserPlus, Newspaper, Loader2, Calendar, User, Tag, Handshake, Mail, Phone, Image as ImageIcon, Folder, Upload, ArrowLeft, CalendarDays, Clock, MapPin } from 'lucide-react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -15,6 +15,7 @@ import { parceirosService, type Parceiro } from '../services/parceiros.service';
 import { galeriaService, type Galeria } from '../services/galeria.service';
 import { jogosService, type Jogo } from '../services/jogos.service';
 import { azureBlobService } from '../services/azure-blob.service';
+import { agendaService, type AgendaItem } from '../services/agenda.service';
 import { getUserInfo } from '../utils/auth';
 
 export function ConfiguracoesSection() {
@@ -54,6 +55,11 @@ export function ConfiguracoesSection() {
   const [deletingGaleria, setDeletingGaleria] = useState<string | null>(null);
   const [confirmDeleteNoticia, setConfirmDeleteNoticia] = useState<string | null>(null);
   const [confirmDeleteParceiro, setConfirmDeleteParceiro] = useState<string | null>(null);
+  const [agendaItems, setAgendaItems] = useState<AgendaItem[]>([]);
+  const [loadingAgenda, setLoadingAgenda] = useState(false);
+  const [editingAgenda, setEditingAgenda] = useState<string | null>(null);
+  const [creatingAgenda, setCreatingAgenda] = useState(false);
+  const [confirmDeleteAgenda, setConfirmDeleteAgenda] = useState<string | null>(null);
 
   useEffect(() => {
     checkAdmin();
@@ -64,6 +70,9 @@ export function ConfiguracoesSection() {
   useEffect(() => {
     if (activeTab === 'galeria' && isAdmin) {
       loadGalerias();
+    }
+    if (activeTab === 'agenda' && isAdmin) {
+      loadAgenda();
     }
   }, [activeTab, isAdmin]);
 
@@ -79,6 +88,61 @@ export function ConfiguracoesSection() {
       toast.error('Erro ao carregar galerias');
     } finally {
       setLoadingGalerias(false);
+    }
+  };
+
+  const loadAgenda = async () => {
+    try {
+      setLoadingAgenda(true);
+      const response = await agendaService.listAll();
+      if (response.success && response.data) {
+        setAgendaItems(response.data);
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar agenda:', error);
+      toast.error('Erro ao carregar agenda');
+    } finally {
+      setLoadingAgenda(false);
+    }
+  };
+
+  const handleCreateAgenda = async (data: Partial<AgendaItem>) => {
+    try {
+      const response = await agendaService.create(data);
+      if (response.success) {
+        toast.success('Item da agenda criado com sucesso!');
+        setCreatingAgenda(false);
+        loadAgenda();
+      }
+    } catch (error: any) {
+      toast.error('Erro ao criar item da agenda: ' + (error.message || 'Erro desconhecido'));
+    }
+  };
+
+  const handleUpdateAgenda = async (id: string, data: Partial<AgendaItem>) => {
+    try {
+      const response = await agendaService.update(id, data);
+      if (response.success) {
+        toast.success('Item da agenda atualizado com sucesso!');
+        setEditingAgenda(null);
+        loadAgenda();
+      }
+    } catch (error: any) {
+      toast.error('Erro ao atualizar item da agenda: ' + (error.message || 'Erro desconhecido'));
+    }
+  };
+
+  const handleDeleteAgenda = async () => {
+    if (!confirmDeleteAgenda) return;
+    try {
+      const response = await agendaService.delete(confirmDeleteAgenda);
+      if (response.success) {
+        toast.success('Item da agenda excluído com sucesso!');
+        setConfirmDeleteAgenda(null);
+        loadAgenda();
+      }
+    } catch (error: any) {
+      toast.error('Erro ao excluir item da agenda: ' + (error.message || 'Erro desconhecido'));
     }
   };
 
@@ -306,6 +370,10 @@ export function ConfiguracoesSection() {
               <TabsTrigger value="galeria" className="flex-1 min-w-0 sm:min-w-[100px] h-full text-xs sm:text-sm">
                 <ImageIcon className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
                 <span className="truncate">Galeria</span>
+              </TabsTrigger>
+              <TabsTrigger value="agenda" className="flex-1 min-w-0 sm:min-w-[100px] h-full text-xs sm:text-sm">
+                <CalendarDays className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="truncate">Agenda</span>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -769,6 +837,23 @@ export function ConfiguracoesSection() {
               onLoadGalerias={loadGalerias}
               onSetEditingGaleria={setEditingGaleria}
               onSetDeletingGaleria={setDeletingGaleria}
+            />
+          </TabsContent>
+
+          <TabsContent value="agenda">
+            <AgendaManagement 
+              agendaItems={agendaItems}
+              loading={loadingAgenda}
+              editingAgenda={editingAgenda}
+              creatingAgenda={creatingAgenda}
+              confirmDeleteAgenda={confirmDeleteAgenda}
+              onLoadAgenda={loadAgenda}
+              onCreateAgenda={handleCreateAgenda}
+              onUpdateAgenda={handleUpdateAgenda}
+              onDeleteAgenda={handleDeleteAgenda}
+              onSetEditingAgenda={setEditingAgenda}
+              onSetCreatingAgenda={setCreatingAgenda}
+              onSetConfirmDeleteAgenda={setConfirmDeleteAgenda}
             />
           </TabsContent>
         </Tabs>
@@ -1360,7 +1445,26 @@ function UsuarioEditForm({
     active: usuario.active ?? true,
     patent: usuario.patent || 'recruta',
     nome_guerra: usuario.nome_guerra || '',
+    telefone: usuario.telefone || '',
   });
+
+  // Função para aplicar máscara de telefone brasileiro
+  const maskPhoneBR = (value: string) => {
+    const digits = (value || '').replace(/\D/g, '').slice(0, 11);
+    const ddd = digits.slice(0, 2);
+    const rest = digits.slice(2);
+    if (!ddd) return '';
+    if (rest.length > 5) {
+      if (digits.length === 11) {
+        const p1 = rest.slice(0, 5);
+        const p2 = rest.slice(5, 9);
+        return `(${ddd}) ${p1}${p2 ? '-' + p2 : ''}`;
+      }
+    }
+    const p1 = rest.slice(0, 4);
+    const p2 = rest.slice(4, 8);
+    return `(${ddd}) ${p1}${p2 ? '-' + p2 : ''}`;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1437,6 +1541,20 @@ function UsuarioEditForm({
         />
       </div>
 
+      <div>
+        <label className="block text-sm text-gray-400 mb-2">Telefone</label>
+        <input
+          type="tel"
+          value={formData.telefone}
+          onChange={(e) => {
+            const masked = maskPhoneBR(e.target.value);
+            setFormData({ ...formData, telefone: masked });
+          }}
+          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+          placeholder="(11) 98765-4321"
+        />
+      </div>
+
       <div className="flex gap-2">
         <Button type="submit">
           <Save className="w-4 h-4 mr-2" />
@@ -1465,11 +1583,30 @@ function UsuarioCreateForm({
     name: '',
     email: '',
     nome_guerra: '',
+    telefone: '',
     patent: 'recruta' as 'comando' | 'comando_squad' | 'soldado' | 'sub_comando' | 'recruta' | 'organizacao',
     roles: ['user'] as string[],
     active: true,
     squad_id: '' as string | '',
   });
+
+  // Função para aplicar máscara de telefone brasileiro
+  const maskPhoneBR = (value: string) => {
+    const digits = (value || '').replace(/\D/g, '').slice(0, 11);
+    const ddd = digits.slice(0, 2);
+    const rest = digits.slice(2);
+    if (!ddd) return '';
+    if (rest.length > 5) {
+      if (digits.length === 11) {
+        const p1 = rest.slice(0, 5);
+        const p2 = rest.slice(5, 9);
+        return `(${ddd}) ${p1}${p2 ? '-' + p2 : ''}`;
+      }
+    }
+    const p1 = rest.slice(0, 4);
+    const p2 = rest.slice(4, 8);
+    return `(${ddd}) ${p1}${p2 ? '-' + p2 : ''}`;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1485,6 +1622,7 @@ function UsuarioCreateForm({
       name: formData.name.trim(),
       email: formData.email.trim(),
       nome_guerra: formData.nome_guerra.trim() || undefined,
+      telefone: formData.telefone.trim() || undefined,
       patent: formData.patent,
       roles: formData.roles,
       active: formData.active,
@@ -1532,6 +1670,20 @@ function UsuarioCreateForm({
           value={formData.nome_guerra}
           onChange={(e) => setFormData({ ...formData, nome_guerra: e.target.value })}
           className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm text-gray-400 mb-2">Telefone</label>
+        <input
+          type="tel"
+          value={formData.telefone}
+          onChange={(e) => {
+            const masked = maskPhoneBR(e.target.value);
+            setFormData({ ...formData, telefone: masked });
+          }}
+          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+          placeholder="(11) 98765-4321"
         />
       </div>
 
@@ -2220,9 +2372,9 @@ function EstatutoEditForm({
   const [formData, setFormData] = useState<EstatutoInfo>(
     estatuto || defaultEstatuto
   );
-  // Expande todos os tópicos por padrão se houver estatuto existente
+  // Inicia com todos os tópicos fechados
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(
-    new Set(estatuto?.conteudo?.topics?.map(t => t.id) || [])
+    new Set()
   );
 
   const toggleTopic = (topicId: string) => {
@@ -4091,6 +4243,310 @@ function GaleriaUploadModal({
         </div>
       </Card>
     </div>
+  );
+}
+
+// Componente de Gestão de Agenda
+function AgendaManagement({
+  agendaItems,
+  loading,
+  editingAgenda,
+  creatingAgenda,
+  confirmDeleteAgenda,
+  onLoadAgenda,
+  onCreateAgenda,
+  onUpdateAgenda,
+  onDeleteAgenda,
+  onSetEditingAgenda,
+  onSetCreatingAgenda,
+  onSetConfirmDeleteAgenda,
+}: {
+  agendaItems: AgendaItem[];
+  loading: boolean;
+  editingAgenda: string | null;
+  creatingAgenda: boolean;
+  confirmDeleteAgenda: string | null;
+  onLoadAgenda: () => void;
+  onCreateAgenda: (data: Partial<AgendaItem>) => void;
+  onUpdateAgenda: (id: string, data: Partial<AgendaItem>) => void;
+  onDeleteAgenda: () => void;
+  onSetEditingAgenda: (id: string | null) => void;
+  onSetCreatingAgenda: (creating: boolean) => void;
+  onSetConfirmDeleteAgenda: (id: string | null) => void;
+}) {
+  if (loading) {
+    return (
+      <Card className="p-6 bg-gray-800/50 border-amber-600/30">
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-8 h-8 text-amber-600 animate-spin" />
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-6 bg-gray-800/50 border-amber-600/30">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl text-white">Gerenciar Agenda</h2>
+        <Button
+          onClick={() => onSetCreatingAgenda(true)}
+          className="bg-amber-600 hover:bg-amber-700"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Adicionar Item
+        </Button>
+      </div>
+
+      {creatingAgenda && (
+        <AgendaForm
+          onSave={(data) => {
+            onCreateAgenda(data);
+            onSetCreatingAgenda(false);
+          }}
+          onCancel={() => onSetCreatingAgenda(false)}
+        />
+      )}
+
+      {agendaItems.length === 0 ? (
+        <div className="text-center py-8 text-gray-400">
+          Nenhum item na agenda. Clique em "Adicionar Item" para começar.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {agendaItems.map((item) => (
+            <div
+              key={item.id}
+              className="p-4 bg-gray-900/50 rounded-lg border border-gray-700/50"
+            >
+              {editingAgenda === item.id ? (
+                <AgendaForm
+                  item={item}
+                  onSave={(data) => {
+                    onUpdateAgenda(item.id, data);
+                    onSetEditingAgenda(null);
+                  }}
+                  onCancel={() => onSetEditingAgenda(null)}
+                />
+              ) : (
+                <>
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-lg text-white font-semibold">{item.titulo}</h3>
+                        {item.tipo && (
+                          <Badge className="bg-amber-600/20 text-amber-400 border-amber-500/50">
+                            {item.tipo}
+                          </Badge>
+                        )}
+                        {!item.ativo && (
+                          <Badge className="bg-gray-600/20 text-gray-400 border-gray-500/50">
+                            Inativo
+                          </Badge>
+                        )}
+                      </div>
+                      {item.descricao && (
+                        <p className="text-gray-300 mb-2">{item.descricao}</p>
+                      )}
+                      <div className="flex flex-wrap gap-4 text-sm text-gray-400">
+                        <span>
+                          <Calendar className="w-4 h-4 inline mr-1" />
+                          {new Date(item.data).toLocaleDateString('pt-BR')}
+                        </span>
+                        {item.hora && (
+                          <span>
+                            <Clock className="w-4 h-4 inline mr-1" />
+                            {item.hora}
+                          </span>
+                        )}
+                        {item.local && (
+                          <span>
+                            <MapPin className="w-4 h-4 inline mr-1" />
+                            {item.local}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 ml-4">
+                      <Button
+                        onClick={() => onSetEditingAgenda(item.id)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        onClick={() => onSetConfirmDeleteAgenda(item.id)}
+                        variant="outline"
+                        size="sm"
+                        className="text-red-400 hover:text-red-300"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={confirmDeleteAgenda !== null}
+        title="Excluir Item da Agenda"
+        message="Tem certeza que deseja excluir este item da agenda? Esta ação não pode ser desfeita."
+        type="delete"
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        onConfirm={onDeleteAgenda}
+        onCancel={() => onSetConfirmDeleteAgenda(null)}
+      />
+    </Card>
+  );
+}
+
+// Componente de Formulário de Agenda
+function AgendaForm({
+  item,
+  onSave,
+  onCancel,
+}: {
+  item?: AgendaItem;
+  onSave: (data: Partial<AgendaItem>) => void;
+  onCancel: () => void;
+}) {
+  const [formData, setFormData] = useState({
+    titulo: item?.titulo || '',
+    descricao: item?.descricao || '',
+    data: item?.data ? item.data.split('T')[0] : '',
+    hora: item?.hora || '',
+    local: item?.local || '',
+    tipo: item?.tipo || '',
+    ordem: item?.ordem?.toString() || '',
+    ativo: item?.ativo !== undefined ? item.ativo : true,
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.titulo.trim() || !formData.data) {
+      toast.error('Título e data são obrigatórios');
+      return;
+    }
+
+    onSave({
+      titulo: formData.titulo.trim(),
+      descricao: formData.descricao.trim() || null,
+      data: formData.data,
+      hora: formData.hora.trim() || null,
+      local: formData.local.trim() || null,
+      tipo: formData.tipo.trim() || null,
+      ordem: formData.ordem ? parseInt(formData.ordem) : null,
+      ativo: formData.ativo,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm text-gray-400 mb-2">Título *</label>
+        <input
+          type="text"
+          value={formData.titulo}
+          onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
+          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm text-gray-400 mb-2">Descrição</label>
+        <textarea
+          value={formData.descricao}
+          onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+          rows={3}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">Data *</label>
+          <input
+            type="date"
+            value={formData.data}
+            onChange={(e) => setFormData({ ...formData, data: e.target.value })}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">Hora</label>
+          <input
+            type="time"
+            value={formData.hora}
+            onChange={(e) => setFormData({ ...formData, hora: e.target.value })}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm text-gray-400 mb-2">Local</label>
+        <input
+          type="text"
+          value={formData.local}
+          onChange={(e) => setFormData({ ...formData, local: e.target.value })}
+          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">Tipo</label>
+          <input
+            type="text"
+            value={formData.tipo}
+            onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+            placeholder="Ex: Reunião, Treinamento, Evento"
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">Ordem</label>
+          <input
+            type="number"
+            value={formData.ordem}
+            onChange={(e) => setFormData({ ...formData, ordem: e.target.value })}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+            placeholder="Para ordenação"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="ativo"
+          checked={formData.ativo}
+          onChange={(e) => setFormData({ ...formData, ativo: e.target.checked })}
+          className="w-4 h-4 text-amber-600 bg-gray-800 border-gray-700 rounded"
+        />
+        <label htmlFor="ativo" className="text-sm text-gray-400">
+          Item ativo (visível na agenda pública)
+        </label>
+      </div>
+
+      <div className="flex gap-2 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
+          <X className="w-4 h-4 mr-2" />
+          Cancelar
+        </Button>
+        <Button type="submit" className="flex-1">
+          <Save className="w-4 h-4 mr-2" />
+          {item ? 'Salvar' : 'Criar'}
+        </Button>
+      </div>
+    </form>
   );
 }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Menu, X, Shield, ChevronDown, LogOut, User, Settings } from 'lucide-react';
 import { isAuthenticated, getUserInfo, logout } from '../utils/auth';
+import { equipeService } from '../services/equipe.service';
 
 interface HeaderProps {
   activeSection: string;
@@ -23,6 +24,8 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [imageError, setImageError] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [equipeNome, setEquipeNome] = useState<string>('GOST');
+  const [equipeSignificado, setEquipeSignificado] = useState<string>('Airsoft Team');
 
   const mainMenuItems = [
     // { id: 'login', label: 'Login' },
@@ -36,6 +39,7 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
 
     { id: 'galeria', label: 'Galeria' },
     { id: 'membros', label: 'Membros' },
+    { id: 'agenda', label: 'Agenda' },
     // { id: 'noticias', label: 'Notícias' },
     // { id: 'faq', label: 'FAQ' },
     // { id: 'treinamento', label: 'Treinamento' },
@@ -46,7 +50,24 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
 
   const allMenuItems = [...mainMenuItems, ...moreMenuItems];
 
+  const loadEquipeData = async () => {
+    try {
+      const response = await equipeService.get();
+      if (response.success && response.data) {
+        if (response.data.nome) {
+          setEquipeNome(response.data.nome);
+        }
+        if (response.data.significado_nome) {
+          setEquipeSignificado(response.data.significado_nome);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados da equipe:', error);
+    }
+  };
+
   useEffect(() => {
+    loadEquipeData();
     const checkAuth = async () => {
       try {
         const authenticated = await isAuthenticated();
@@ -87,14 +108,25 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
       }
     };
 
+    // Fechar dropdown ao clicar fora
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // Verifica se o clique foi fora do dropdown e do botão que abre o dropdown
+      if (userDropdownOpen && !target.closest('[data-user-dropdown]') && !target.closest('[data-user-button]')) {
+        setUserDropdownOpen(false);
+      }
+    };
+
     window.addEventListener('auth-success', handleAuthSuccess);
+    window.addEventListener('click', handleClickOutside);
     const interval = setInterval(checkAuth, 30000);
 
     return () => {
       window.removeEventListener('auth-success', handleAuthSuccess);
+      window.removeEventListener('click', handleClickOutside);
       clearInterval(interval);
     };
-  }, []);
+  }, [userDropdownOpen]);
 
   const handleLogout = async () => {
     setUserDropdownOpen(false);
@@ -108,8 +140,9 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {isLoggedIn && userData ? (
-            <div className="relative">
+            <div className="relative" data-user-dropdown>
               <button
+                data-user-button
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                 className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
               >
@@ -145,6 +178,7 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
                     document.body
                   )}
                   <div 
+                    data-user-dropdown
                     className="absolute top-full left-0 mt-2 w-56 bg-gray-800 border border-amber-600/30 rounded-lg shadow-xl z-[60] py-2"
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -177,10 +211,10 @@ export function Header({ activeSection, setActiveSection }: HeaderProps) {
             </div>
           ) : (
             <div className="flex items-center cursor-pointer" onClick={() => setActiveSection('inicio')}>
-              <img src="/path_gost.svg" alt="GOST" className="w-16 h-16 text-amber-500" />
+              <img src="/path_gost.svg" alt={equipeNome} className="w-16 h-16 text-amber-500" />
               <div>
-                <h1 className="text-amber-500 tracking-wider">GOST</h1>
-                <p className="text-xs text-gray-400">Airsoft Team</p>
+                <h1 className="text-amber-500 tracking-wider">{equipeNome}</h1>
+                <p className="text-xs text-gray-400">{equipeSignificado}</p>
               </div>
             </div>
           )}

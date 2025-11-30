@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, Send, CheckCircle, Clock, CheckCircle2, XCircle, Loader2, MessageSquare, User } from 'lucide-react';
+import { UserPlus, Send, CheckCircle, Clock, CheckCircle2, XCircle, Loader2, MessageSquare, User, MessageCircle, Phone } from 'lucide-react';
 import { Card } from './ui/card';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
@@ -11,6 +11,7 @@ import { getUserInfo } from '../utils/auth';
 import { recrutamentoService, type Recrutamento } from '../services/recrutamento.service';
 import { n8nService } from '../services/n8n.service';
 import { equipeService } from '../services/equipe.service';
+import { usuariosService, type Usuario } from '../services/usuarios.service';
 
 export function RecruitmentSection() {
   const [formData, setFormData] = useState({
@@ -684,41 +685,50 @@ function MyRecrutamentoStatus({ recrutamento }: { recrutamento: Recrutamento }) 
   ];
 
   const getEtapaStatus = (etapa: typeof etapas[0]['key']) => {
-    return recrutamento[`etapa_${etapa}` as keyof Recrutamento] as 'pendente' | 'aprovado' | 'reprovado';
+    return recrutamento[`etapa_${etapa}` as keyof Recrutamento] as 'pendente' | 'aprovado' | 'reprovado' | 'iniciado';
   };
 
   const getEtapaObservacoes = (etapa: typeof etapas[0]['key']) => {
     return recrutamento[`observacoes_${etapa}` as keyof Recrutamento] as string | null | undefined;
   };
 
-  const getStatusIcon = (status: 'pendente' | 'aprovado' | 'reprovado') => {
+  const getStatusIcon = (status: 'pendente' | 'aprovado' | 'reprovado' | 'iniciado') => {
     switch (status) {
       case 'aprovado':
         return <CheckCircle2 className="w-5 h-5 text-green-500" />;
       case 'reprovado':
         return <XCircle className="w-5 h-5 text-red-500" />;
+      case 'iniciado':
+        return <CheckCircle2 className="w-5 h-5 text-blue-500" />;
       default:
         return <Clock className="w-5 h-5 text-gray-400" />;
     }
   };
 
-  const getStatusBadge = (status: 'pendente' | 'aprovado' | 'reprovado') => {
+  const getStatusBadge = (status: 'pendente' | 'aprovado' | 'reprovado' | 'iniciado', etapa?: typeof etapas[0]['key']) => {
+    // Se estiver na etapa de treinamento (qa) e iniciado, mostrar "Em treinamento"
+    if (etapa === 'qa' && status === 'iniciado') {
+      return <Badge className="bg-blue-600/20 text-blue-400 border-blue-500/50 text-xs">Em treinamento</Badge>;
+    }
+    
     switch (status) {
       case 'aprovado':
         return <Badge className="bg-green-600/20 text-green-400 border-green-500/50 text-xs">Aprovado</Badge>;
       case 'reprovado':
         return <Badge className="bg-red-600/20 text-red-400 border-red-500/50 text-xs">Reprovado</Badge>;
+      case 'iniciado':
+        return <Badge className="bg-blue-600/20 text-blue-400 border-blue-500/50 text-xs">Iniciado</Badge>;
       default:
         return <Badge className="bg-gray-600/20 text-gray-400 border-gray-500/50 text-xs">Pendente</Badge>;
     }
   };
 
   const getCurrentEtapa = () => {
-    // Encontra a primeira etapa pendente ou a última aprovada
+    // Encontra a primeira etapa pendente, iniciada ou a última aprovada
     for (let i = 0; i < etapas.length; i++) {
       const status = getEtapaStatus(etapas[i].key);
-      if (status === 'pendente') {
-        return i;
+      if (status === 'pendente' || status === 'iniciado') {
+        return i; // Retorna a primeira etapa pendente ou iniciada
       }
       if (status === 'reprovado') {
         return i; // Para na primeira reprovada
@@ -760,17 +770,22 @@ function MyRecrutamentoStatus({ recrutamento }: { recrutamento: Recrutamento }) 
           const isCompleted = status === 'aprovado';
           const isRejected = status === 'reprovado';
           const isPending = status === 'pendente';
+          const isIniciado = status === 'iniciado';
 
           return (
             <div
               key={etapa.key}
               className={`p-3 sm:p-4 rounded-lg border-2 transition-all ${isCurrent && !isRejected
-                ? 'bg-amber-600/20 border-amber-500/50'
+                ? isIniciado
+                  ? 'bg-blue-600/20 border-blue-500/50'
+                  : 'bg-amber-600/20 border-amber-500/50'
                 : isCompleted
                   ? 'bg-green-600/10 border-green-500/30'
-                  : isRejected
-                    ? 'bg-red-600/10 border-red-500/30'
-                    : 'bg-gray-900/50 border-gray-700/50'
+                  : isIniciado
+                    ? 'bg-blue-600/20 border-blue-500/50'
+                    : isRejected
+                      ? 'bg-red-600/10 border-red-500/30'
+                      : 'bg-gray-900/50 border-gray-700/50'
                 }`}
             >
               <div className="flex items-start justify-between mb-2">
@@ -778,11 +793,13 @@ function MyRecrutamentoStatus({ recrutamento }: { recrutamento: Recrutamento }) 
                   <div
                     className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isCompleted
                       ? 'bg-green-600/20 border-2 border-green-500'
-                      : isRejected
-                        ? 'bg-red-600/20 border-2 border-red-500'
-                        : isCurrent
-                          ? 'bg-amber-600/20 border-2 border-amber-500'
-                          : 'bg-gray-700/50 border-2 border-gray-600'
+                      : isIniciado
+                        ? 'bg-blue-600/20 border-2 border-blue-500'
+                        : isRejected
+                          ? 'bg-red-600/20 border-2 border-red-500'
+                          : isCurrent
+                            ? 'bg-amber-600/20 border-2 border-amber-500'
+                            : 'bg-gray-700/50 border-2 border-gray-600'
                       }`}
                   >
                     {getStatusIcon(status)}
@@ -791,7 +808,7 @@ function MyRecrutamentoStatus({ recrutamento }: { recrutamento: Recrutamento }) 
                     <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-1">
                       <h4 className="text-sm sm:text-base text-white font-semibold">{etapa.nome}</h4>
                       <div className="flex flex-wrap gap-1 sm:gap-2">
-                        {getStatusBadge(status)}
+                        {getStatusBadge(status, etapa.key)}
                         {isCurrent && !isRejected && (
                           <Badge className="bg-amber-600/20 text-amber-400 border-amber-500/50 text-xs">
                             Etapa Atual
@@ -803,6 +820,13 @@ function MyRecrutamentoStatus({ recrutamento }: { recrutamento: Recrutamento }) 
                   </div>
                 </div>
               </div>
+
+              {/* Botão WhatsApp para etapa de treinamento */}
+              {etapa.key === 'qa' && (status === 'iniciado' || status === 'aprovado') && recrutamento.responsavel && (
+                <div className="mt-2 sm:mt-3">
+                  <WhatsAppButton recrutamento={recrutamento} />
+                </div>
+              )}
 
               {/* Observações */}
               {observacoes && (
@@ -859,5 +883,98 @@ function MyRecrutamentoStatus({ recrutamento }: { recrutamento: Recrutamento }) 
         </div>
       )}
     </div>
+  );
+}
+
+// Botão WhatsApp para falar com responsável na etapa de treinamento
+function WhatsAppButton({
+  recrutamento,
+}: {
+  recrutamento: Recrutamento;
+}) {
+  const [responsavelPhone, setResponsavelPhone] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadResponsavelPhone = async () => {
+      if (!recrutamento.responsavel || !recrutamento.responsavel.id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Buscar o usuário completo do responsável para obter o telefone
+        const response = await usuariosService.getById(recrutamento.responsavel.id);
+        
+        if (response.success && response.data) {
+          // Verificar se o usuário tem telefone no objeto
+          const userData = response.data as Usuario;
+          // Tentar buscar telefone de diferentes formas possíveis
+          const phone = userData.telefone 
+            || (response.data as any).telefone 
+            || (response.data as any).phone 
+            || null;
+          
+          console.log('WhatsAppButton: userData completo:', userData);
+          console.log('WhatsAppButton: userData.telefone direto:', userData.telefone);
+          console.log('WhatsAppButton: response.data.telefone:', (response.data as any).telefone);
+          console.log('WhatsAppButton: phone final:', phone);
+          
+          if (phone && (typeof phone === 'string' || typeof phone === 'number') && String(phone).trim().length > 0) {
+            setResponsavelPhone(String(phone).trim());
+          } else {
+            setResponsavelPhone(null);
+          }
+        } else {
+          setResponsavelPhone(null);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar telefone do responsável:', error);
+        setResponsavelPhone(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadResponsavelPhone();
+  }, [recrutamento.responsavel]);
+
+  if (loading) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        disabled
+        className="text-green-400 whitespace-nowrap w-full sm:w-auto"
+      >
+        <Loader2 className="w-4 h-4 mr-2 flex-shrink-0 animate-spin" />
+        <span>Carregando...</span>
+      </Button>
+    );
+  }
+
+  if (!recrutamento.responsavel) {
+    return null;
+  }
+
+  if (!responsavelPhone || !responsavelPhone.trim()) {
+    // Não mostrar nada se telefone não estiver disponível
+    return null;
+  }
+
+  const responsavelName = recrutamento.responsavel.name || 'Responsável';
+  const whatsappLink = `https://wa.me/${responsavelPhone.replace(/\D/g, '').startsWith('55') ? responsavelPhone.replace(/\D/g, '') : `55${responsavelPhone.replace(/\D/g, '')}`}?text=${encodeURIComponent(`Olá ${responsavelName}, sou ${recrutamento.nome} e estou na etapa de treinamento do recrutamento GOST.`)}`;
+
+  return (
+    <Button
+      onClick={() => window.open(whatsappLink, '_blank')}
+      variant="outline"
+      size="sm"
+      className="text-green-400 border-green-500/50 hover:bg-green-500/10 whitespace-nowrap w-full sm:w-auto"
+    >
+      <MessageCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+      <span className="hidden sm:inline">Falar com Responsável</span>
+      <span className="sm:hidden">WhatsApp</span>
+    </Button>
   );
 }

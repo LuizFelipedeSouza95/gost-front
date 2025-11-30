@@ -43,12 +43,13 @@ export function MembersSection() {
       const response = await usuariosService.list(1, 100, false);
       if (response.success && response.data) {
         // Filtrar apenas membros ativos que foram cadastrados como membros oficiais pelos admins
-        // OU que tenham patente de organização
+        // OU que tenham patente de organização ou recruta
         const membrosAtivos = response.data.filter(u => 
           u.active && (
             u.roles?.includes('membro_oficial') || 
             u.patent === 'organizacao' || 
-            u.patent === 'organização'
+            u.patent === 'organização' ||
+            u.patent === 'recruta'
           )
         );
         setUsuarios(membrosAtivos);
@@ -163,6 +164,9 @@ export function MembersSection() {
     } else if (isOrganizacao && !usuario.patent) {
       // Se não tem patente mas tem role de organização, usar 'organizacao'
       patentKey = 'organizacao';
+    } else if (usuario.patent === 'recruta') {
+      // Garantir que recrutas usem 'recruta' como chave
+      patentKey = 'recruta';
     }
     
     const level = getHierarchyLevel(patentKey, usuario.roles);
@@ -246,15 +250,15 @@ export function MembersSection() {
                     const hasPicture = member.picture && member.picture.trim().length > 0;
                     const imageFailed = imageErrors.has(member.id);
                     return (
-                      <div
-                        key={member.id}
-                        className="p-4 bg-gray-900/50 rounded-lg border border-gray-700/50 hover:border-gray-600 transition-colors"
-                      >
-                        <div className="flex items-center gap-3 mb-2">
+                    <div
+                      key={member.id}
+                      className="p-4 bg-gray-900/50 rounded-lg border border-gray-700/50 hover:border-gray-600 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 mb-2">
                           {hasPicture && !imageFailed ? (
-                            <img
+                          <img
                               src={member.picture!}
-                              alt={member.name}
+                            alt={member.name}
                               className="w-10 h-10 rounded-full object-cover border-2 border-amber-600/50 flex-shrink-0"
                               referrerPolicy="no-referrer"
                               crossOrigin="anonymous"
@@ -270,19 +274,19 @@ export function MembersSection() {
                                   newSet.delete(member.id);
                                   return newSet;
                                 });
-                              }}
-                            />
-                          ) : (
+                            }}
+                          />
+                        ) : (
                             <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center border-2 border-amber-600/50 flex-shrink-0">
-                              <User className="w-5 h-5 text-gray-400" />
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-white font-semibold truncate">{member.name}</h3>
-                            <p className="text-xs text-gray-400 capitalize">{member.role}</p>
+                            <User className="w-5 h-5 text-gray-400" />
                           </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-white font-semibold truncate">{member.name}</h3>
+                          {/* <p className="text-xs text-gray-400 capitalize">{member.role}</p> */}
                         </div>
                       </div>
+                    </div>
                     );
                   })}
                 </div>
@@ -293,60 +297,76 @@ export function MembersSection() {
           ))}
         </div>
 
-        {/* Statistics */}
+        {/* Lista Completa de Membros */}
         <Card className="p-6 bg-gray-800/50 backdrop-blur-sm border-amber-600/30">
-          <h2 className="text-2xl text-white mb-6">Lista Completa de Membros ({usuarios.length})</h2>
-
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-700">
-                  <th className="text-left py-3 px-4 text-gray-400">Nome</th>
-                  <th className="text-left py-3 px-4 text-gray-400">Nome de Guerra</th>
-                  <th className="text-left py-3 px-4 text-gray-400">Email</th>
-                  <th className="text-center py-3 px-4 text-gray-400">Patente</th>
-                  <th className="text-center py-3 px-4 text-gray-400">Squad</th>
-                  <th className="text-center py-3 px-4 text-gray-400">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {usuarios.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-gray-400">
-                      Nenhum membro encontrado
-                    </td>
-                  </tr>
-                ) : (
-                  usuarios.map((usuario) => {
-                    const squad = usuario.squad as Squad | undefined;
-                    return (
-                      <tr key={usuario.id} className="border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors">
-                        <td className="py-3 px-4 text-white">{usuario.name || '-'}</td>
-                        <td className="py-3 px-4 text-white">{usuario.nome_guerra || '-'}</td>
-                        <td className="py-3 px-4 text-gray-300">{usuario.email}</td>
-                        <td className="py-3 px-4 text-center">
-                          <Badge className="bg-blue-600/20 text-blue-400 border-blue-500/50 capitalize">
-                            {usuario.patent || 'N/A'}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4 text-center text-gray-300">
-                          {squad?.nome || '-'}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <Badge className={usuario.active
-                            ? "bg-green-600/20 text-green-400 border-green-500/50"
-                            : "bg-gray-600/20 text-gray-400 border-gray-500/50"
-                          }>
-                            {usuario.active ? 'Ativo' : 'Inativo'}
-                          </Badge>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+          <div className="flex items-center gap-3 mb-4">
+            <UsersIcon className="w-6 h-6 text-amber-500" />
+            <h2 className="text-2xl text-white">Lista Completa de Membros</h2>
+            <Badge className="bg-amber-600/20 text-amber-400 border-amber-500/50">
+              {usuarios.length} {usuarios.length === 1 ? 'membro' : 'membros'}
+            </Badge>
           </div>
+
+          {usuarios.length === 0 ? (
+            <p className="text-gray-400 text-center py-4">Nenhum membro encontrado</p>
+          ) : (
+            <div className={`grid md:grid-cols-2 lg:grid-cols-3 gap-4 ${usuarios.length > 5 ? 'max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 pr-2' : ''}`}>
+              {usuarios.map((usuario) => {
+                const squad = usuario.squad as Squad | undefined;
+                const hasPicture = usuario.picture && usuario.picture.trim().length > 0;
+                const imageFailed = imageErrors.has(usuario.id);
+                return (
+                  <div
+                    key={usuario.id}
+                    className="p-4 bg-gray-900/50 rounded-lg border border-gray-700/50 hover:border-gray-600 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      {hasPicture && !imageFailed ? (
+                        <img
+                          src={usuario.picture!}
+                          alt={usuario.nome_guerra || usuario.name || usuario.email}
+                          className="w-10 h-10 rounded-full object-cover border-2 border-amber-600/50 flex-shrink-0"
+                          referrerPolicy="no-referrer"
+                          crossOrigin="anonymous"
+                          loading="lazy"
+                          onError={() => {
+                            setImageErrors(prev => new Set(prev).add(usuario.id));
+                          }}
+                          onLoad={() => {
+                            setImageErrors(prev => {
+                              const newSet = new Set(prev);
+                              newSet.delete(usuario.id);
+                              return newSet;
+                            });
+                          }}
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center border-2 border-amber-600/50 flex-shrink-0">
+                          <User className="w-5 h-5 text-gray-400" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-white font-semibold truncate">
+                          {usuario.nome_guerra || usuario.name || usuario.email.split('@')[0]}
+                        </h3>
+                        {usuario.nome_guerra && usuario.name && (
+                          <p className="text-xs text-gray-400 truncate">{usuario.name}</p>
+                        )}
+                        {squad?.nome && (
+                          <p className="text-xs text-gray-400 truncate">{squad.nome}</p>
+                        )}
+                        {usuario.patent && (
+                          <Badge className="mt-1 bg-blue-600/20 text-blue-400 border-blue-500/50 text-xs capitalize">
+                            {usuario.patent}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
       </div>
     </div>

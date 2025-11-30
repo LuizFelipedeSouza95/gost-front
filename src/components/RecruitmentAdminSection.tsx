@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, CheckCircle, XCircle, Clock, User, Mail, Phone, MapPin, Calendar, MessageSquare, Vote, Users, Loader2, Eye, FileText, X } from 'lucide-react';
+import { UserPlus, CheckCircle, XCircle, Clock, User, Mail, Phone, MapPin, Calendar, MessageSquare, Vote, Users, Loader2, Eye, FileText, X, MessageCircle } from 'lucide-react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -10,7 +10,7 @@ import { getUserInfo } from '../utils/auth';
 import { n8nService } from '../services/n8n.service';
 import { equipeService } from '../services/equipe.service';
 
-type EtapaTipo = 'inscricao' | 'avaliacao' | 'qa' | 'votacao' | 'integracao';
+type EtapaTipo = /* 'inscricao' |  */'avaliacao' | 'qa' | 'votacao' | 'integracao';
 
 export function RecruitmentAdminSection() {
   const [recrutamentos, setRecrutamentos] = useState([] as Recrutamento[]);
@@ -79,19 +79,20 @@ export function RecruitmentAdminSection() {
   const handleUpdateStage = async (
     recrutamentoId: string,
     etapa: EtapaTipo,
-    status: 'aprovado' | 'reprovado',
+    status: 'aprovado' | 'reprovado' | 'iniciado',
     observacoes?: string
   ) => {
     try {
       const response = await recrutamentoService.updateStage(recrutamentoId, etapa, status, observacoes);
       if (response.success) {
-        toast.success(`Etapa ${getEtapaNome(etapa)} ${status === 'aprovado' ? 'aprovada' : 'reprovada'}!`);
+        const statusMessage = status === 'aprovado' ? 'aprovada' : status === 'reprovado' ? 'reprovada' : status === 'iniciado' ? 'iniciada' : 'atualizada';
+        toast.success(`Etapa ${getEtapaNome(etapa)} ${statusMessage}!`);
 
         // Enviar email via n8n para o candidato sobre a atualização
         const recrutamentoAtualizado = response.data;
         // Mapear status da etapa para texto amigável
         const statusEtapa = recrutamentoAtualizado[`etapa_${etapa}` as keyof Recrutamento] as string || status;
-        const statusTexto = statusEtapa === 'pendente' ? 'Em Análise' : statusEtapa === 'aprovado' ? 'Aprovado' : statusEtapa === 'reprovado' ? 'Reprovado' : statusEtapa;
+        const statusTexto = statusEtapa === 'pendente' ? 'Em Análise' : statusEtapa === 'aprovado' ? 'Aprovado' : statusEtapa === 'reprovado' ? 'Reprovado' : statusEtapa === 'iniciado' ? 'Em treinamento' : statusEtapa;
         const nomeEtapa = getEtapaNome(etapa);
         // O normalizeEmailData no n8nService garante que todos os dados da equipe sejam incluídos
         n8nService.enviarEmailAtualizacaoRecrutamento({
@@ -148,7 +149,7 @@ export function RecruitmentAdminSection() {
 
   const getEtapaNome = (etapa: EtapaTipo): string => {
     const nomes: Record<EtapaTipo, string> = {
-      inscricao: 'Inscrição',
+      // inscricao: 'Inscrição',
       avaliacao: 'Avaliação',
       qa: 'Período Q&A',
       votacao: 'Votação',
@@ -158,18 +159,73 @@ export function RecruitmentAdminSection() {
   };
 
   const getEtapaStatus = (recrutamento: Recrutamento, etapa: EtapaTipo) => {
-    return recrutamento[`etapa_${etapa}` as keyof Recrutamento] as 'pendente' | 'aprovado' | 'reprovado';
+    return recrutamento[`etapa_${etapa}` as keyof Recrutamento] as 'pendente' | 'aprovado' | 'reprovado' | 'iniciado';
   };
 
-  const getStatusBadge = (status: 'pendente' | 'aprovado' | 'reprovado') => {
+  const getStatusBadge = (status: 'pendente' | 'aprovado' | 'reprovado' | 'iniciado', etapa?: EtapaTipo) => {
+    // Se estiver na etapa de treinamento (qa) e iniciado ou aprovado, mostrar "Em treinamento"
+    if (etapa === 'qa' && (status === 'iniciado' || status === 'aprovado')) {
+      return <Badge className="bg-blue-600/20 text-blue-400 border-blue-500/50">Em treinamento</Badge>;
+    }
+    
     switch (status) {
       case 'aprovado':
         return <Badge className="bg-green-600/20 text-green-400 border-green-500/50">Aprovado</Badge>;
       case 'reprovado':
         return <Badge className="bg-red-600/20 text-red-400 border-red-500/50">Reprovado</Badge>;
+      case 'iniciado':
+        return <Badge className="bg-blue-600/20 text-blue-400 border-blue-500/50">Iniciado</Badge>;
       default:
         return <Badge className="bg-gray-600/20 text-gray-400 border-gray-500/50">Pendente</Badge>;
     }
+  };
+
+  // Função para encontrar a etapa atual (primeira pendente ou próxima após última aprovada)
+  const getCurrentEtapa = (recrutamento: Recrutamento): EtapaTipo => {
+    const etapas: EtapaTipo[] = [/* 'inscricao',  */'avaliacao', 'qa', 'votacao', 'integracao'];
+    
+    // Primeiro, procurar por uma etapa pendente ou iniciada (em andamento)
+    for (const etapa of etapas) {
+      const status = getEtapaStatus(recrutamento, etapa);
+      if (status === 'pendente' || status === 'iniciado') {
+        return etapa;
+      }
+    }
+    
+    // Se não há pendente ou iniciado, procurar a última etapa aprovada e retornar a próxima etapa
+    let ultimaAprovadaIndex = -1;
+    for (let i = 0; i < etapas.length; i++) {
+      const status = getEtapaStatus(recrutamento, etapas[i]);
+      if (status === 'aprovado') {
+        ultimaAprovadaIndex = i;
+      } else if (status === 'reprovado') {
+        // Se encontrou uma reprovada, retorna ela (para poder reprovar novamente se necessário)
+        return etapas[i];
+      }
+    }
+    
+    // Se encontrou uma aprovada, retorna a próxima etapa (que deve estar pendente)
+    if (ultimaAprovadaIndex >= 0 && ultimaAprovadaIndex < etapas.length - 1) {
+      return etapas[ultimaAprovadaIndex + 1];
+    }
+    
+    // Se a última etapa está aprovada ou todas estão concluídas, retorna a última
+    if (ultimaAprovadaIndex >= 0) {
+      return etapas[ultimaAprovadaIndex];
+    }
+    
+    // Se nenhuma está aprovada, retorna a primeira
+    return /* 'inscricao'; */ 'avaliacao';
+  };
+
+  // Função para gerar link do WhatsApp
+  const generateWhatsAppLink = (phone: string, message?: string): string => {
+    // Remove caracteres não numéricos
+    const cleanPhone = phone.replace(/\D/g, '');
+    // Adiciona código do país se não tiver (assumindo Brasil)
+    const fullPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+    const encodedMessage = message ? encodeURIComponent(message) : '';
+    return `https://wa.me/${fullPhone}${encodedMessage ? `?text=${encodedMessage}` : ''}`;
   };
 
   const isComando = currentUser?.roles?.includes('admin') ||
@@ -269,7 +325,7 @@ export function RecruitmentAdminSection() {
                     return (
                       <div key={etapa} className="text-center p-2 bg-gray-900/50 rounded">
                         <p className="text-xs text-gray-400 mb-1">{getEtapaNome(etapa)}</p>
-                        {getStatusBadge(status)}
+                        {getStatusBadge(status, etapa)}
                       </div>
                     );
                   })}
@@ -324,6 +380,13 @@ export function RecruitmentAdminSection() {
                       Votar
                     </Button>
                   )}
+                  {/* Botão WhatsApp para etapa de treinamento */}
+                  {(recrutamento.etapa_qa === 'aprovado' || recrutamento.etapa_qa === 'iniciado') && recrutamento.responsavel && (
+                    <WhatsAppButton
+                      recrutamento={recrutamento}
+                      usuarios={usuarios}
+                    />
+                  )}
                 </div>
 
                 {/* Votos (se na etapa de votação) */}
@@ -360,6 +423,7 @@ export function RecruitmentAdminSection() {
             setShowStageModal(false);
             setSelectedRecrutamento(null);
           }}
+          getCurrentEtapa={getCurrentEtapa}
         />
       )}
 
@@ -394,17 +458,32 @@ function StageModal({
   recrutamento,
   onUpdate,
   onClose,
+  getCurrentEtapa,
 }: {
   recrutamento: Recrutamento;
-  onUpdate: (id: string, etapa: EtapaTipo, status: 'aprovado' | 'reprovado', observacoes?: string) => void;
+  onUpdate: (id: string, etapa: EtapaTipo, status: 'aprovado' | 'reprovado' | 'iniciado', observacoes?: string) => void;
   onClose: () => void;
+  getCurrentEtapa: (recrutamento: Recrutamento) => EtapaTipo;
 }) {
-  const [selectedEtapa, setSelectedEtapa] = useState('avaliacao' as EtapaTipo);
-  const [status, setStatus] = useState('aprovado' as 'aprovado' | 'reprovado');
+  // Inicializar com a etapa atual (primeira pendente ou última aprovada)
+  const [selectedEtapa, setSelectedEtapa] = useState(() => getCurrentEtapa(recrutamento));
+  
+  // Inicializar o status com base na etapa selecionada
+  const getEtapaStatus = (recrutamento: Recrutamento, etapa: EtapaTipo) => {
+    return recrutamento[`etapa_${etapa}` as keyof Recrutamento] as 'pendente' | 'aprovado' | 'reprovado' | 'iniciado';
+  };
+  
+  const [status, setStatus] = useState(() => {
+    const etapaStatus = getEtapaStatus(recrutamento, getCurrentEtapa(recrutamento));
+    // Se a etapa está reprovada, começar com reprovado. Se iniciada, manter iniciado. Caso contrário, começar com aprovado.
+    if (etapaStatus === 'reprovado') return 'reprovado';
+    if (etapaStatus === 'iniciado') return 'iniciado';
+    return 'aprovado';
+  });
 
-  const etapas: EtapaTipo[] = ['inscricao', 'avaliacao', 'qa', 'votacao', 'integracao'];
+  const etapas: EtapaTipo[] = [/* 'inscricao',  */'avaliacao', 'qa', 'votacao', 'integracao'];
   const etapaNomes: Record<EtapaTipo, string> = {
-    inscricao: 'Inscrição',
+    // inscricao: 'Inscrição',
     avaliacao: 'Avaliação',
     qa: 'Período Q&A',
     votacao: 'Votação',
@@ -444,6 +523,18 @@ function StageModal({
             <div>
               <label className="block text-sm text-gray-400 mb-2">Status</label>
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+              {selectedEtapa === 'qa' && (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      value="iniciado"
+                      checked={status === 'iniciado'}
+                      onChange={() => setStatus('iniciado')}
+                      className="w-4 h-4 text-blue-600 flex-shrink-0"
+                    />
+                    <span className="text-white text-sm sm:text-base">Iniciar</span>
+                  </label>
+                )}
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
@@ -488,6 +579,67 @@ function StageModal({
         </div>
       </Card>
     </div>
+  );
+}
+
+// Botão WhatsApp para falar com responsável na etapa de treinamento
+function WhatsAppButton({
+  recrutamento,
+  usuarios,
+}: {
+  recrutamento: Recrutamento;
+  usuarios: Usuario[];
+}) {
+  const [responsavelPhone, setResponsavelPhone] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadResponsavelPhone = async () => {
+      if (!recrutamento.responsavel || !recrutamento.responsavel.id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Buscar o usuário completo do responsável para obter o telefone
+        const response = await usuariosService.getById(recrutamento.responsavel.id);
+        if (response.success && response.data) {
+          // Verificar se o usuário tem telefone no objeto (pode estar em diferentes campos)
+          const phone = (response.data as any).telefone || (response.data as any).phone || null;
+          setResponsavelPhone(phone);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar telefone do responsável:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadResponsavelPhone();
+  }, [recrutamento.responsavel]);
+
+  if (loading) {
+    return null;
+  }
+
+  if (!responsavelPhone || !recrutamento.responsavel) {
+    return null;
+  }
+
+  const responsavelName = recrutamento.responsavel.name || 'Responsável';
+  const whatsappLink = `https://wa.me/${responsavelPhone.replace(/\D/g, '').startsWith('55') ? responsavelPhone.replace(/\D/g, '') : `55${responsavelPhone.replace(/\D/g, '')}`}?text=${encodeURIComponent(`Olá ${responsavelName}, sou ${recrutamento.nome} e estou na etapa de treinamento do recrutamento GOST.`)}`;
+
+  return (
+    <Button
+      onClick={() => window.open(whatsappLink, '_blank')}
+      variant="outline"
+      size="sm"
+      className="text-green-400 whitespace-nowrap"
+    >
+      <MessageCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+      <span className="hidden sm:inline">Falar com Responsável</span>
+      <span className="sm:hidden">WhatsApp</span>
+    </Button>
   );
 }
 
@@ -802,4 +954,5 @@ function FormViewModal({
     </div>
   );
 }
+
 

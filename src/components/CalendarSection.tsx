@@ -198,7 +198,26 @@ export function Calendar() {
     }
   };
 
+  // Função para verificar se um jogo já passou
+  const isJogoPassado = (jogo: Jogo): boolean => {
+    if (!jogo.data_jogo) return false;
+    
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    
+    const dataJogo = new Date(jogo.data_jogo);
+    dataJogo.setHours(0, 0, 0, 0);
+    
+    // Se a data do jogo é anterior a hoje, o jogo já passou
+    return dataJogo < hoje;
+  };
+
   const handleEditJogo = (eventId: string | number) => {
+    const jogo = jogos.find(j => j.id === eventId);
+    if (jogo && isJogoPassado(jogo)) {
+      toast.error('Não é possível editar jogos que já passaram');
+      return;
+    }
     setEditingJogo(eventId);
   };
 
@@ -238,8 +257,15 @@ export function Calendar() {
 
   const handleUpdateJogo = async (id: string | number, data: Partial<Jogo>) => {
     try {
-      // Se o jogo estava cancelado e não foi especificado um status, muda para scheduled
+      // Verificar se o jogo já passou antes de atualizar
       const jogo = jogos.find(j => j.id === id);
+      if (jogo && isJogoPassado(jogo)) {
+        toast.error('Não é possível editar jogos que já passaram');
+        setEditingJogo(null);
+        return;
+      }
+      
+      // Se o jogo estava cancelado e não foi especificado um status, muda para scheduled
       if (jogo?.status === 'cancelled' && !data.status) {
         data.status = 'scheduled';
       }
@@ -256,6 +282,11 @@ export function Calendar() {
   };
 
   const handleRescheduleJogo = (eventId: string | number) => {
+    const jogo = jogos.find(j => j.id === eventId);
+    if (jogo && isJogoPassado(jogo)) {
+      toast.error('Não é possível reagendar jogos que já passaram');
+      return;
+    }
     setEditingJogo(eventId);
   };
 
@@ -440,6 +471,11 @@ export function Calendar() {
   };
 
   const handleConfirmPresence = async (eventId: string | number, response: 'confirmed' | 'declined', nome?: string, email?: string) => {
+    // Se já está confirmado e tentar confirmar novamente, não faz nada
+    if (response === 'confirmed' && userResponses[eventId] === 'confirmed') {
+      return;
+    }
+
     // Se não estiver logado e for confirmar, abre modal para coletar nome e email
     if (!currentUserId && response === 'confirmed') {
       setShowNameModal({ eventId, response });
@@ -456,41 +492,29 @@ export function Calendar() {
       const currentResponse = userResponses[eventId];
 
       if (response === 'confirmed') {
-        if (currentResponse === 'confirmed') {
-          // Se já está confirmado, remove a confirmação (só se estiver logado)
-          if (currentUserId) {
-            await jogosService.removePresence(String(eventId));
-            toast.success('Presença removida com sucesso!');
-            setUserResponses(prev => ({
-              ...prev,
-              [eventId]: null
-            }));
-          }
-        } else {
-          // Confirma presença (com nome e email se não autenticado)
-          const confirmResponse = await jogosService.confirmPresence(String(eventId), nome, email);
-          toast.success('Presença confirmada com sucesso!');
-          setUserResponses(prev => ({
-            ...prev,
-            [eventId]: 'confirmed'
-          }));
+        // Confirma presença (com nome e email se não autenticado)
+        const confirmResponse = await jogosService.confirmPresence(String(eventId), nome, email);
+        toast.success('Presença confirmada com sucesso!');
+        setUserResponses(prev => ({
+          ...prev,
+          [eventId]: 'confirmed'
+        }));
 
-          // O email será enviado automaticamente 1 dia antes do jogo pelo n8n
-          // Não é necessário enviar email imediatamente ao confirmar presença
-        }
+        // O email será enviado automaticamente 1 dia antes do jogo pelo n8n
+        // Não é necessário enviar email imediatamente ao confirmar presença
       } else {
         // Recusar = remover confirmação se existir (só se estiver logado)
         if (currentUserId) {
           if (currentResponse === 'confirmed') {
             await jogosService.removePresence(String(eventId));
             toast.success('Presença removida com sucesso!');
+            setUserResponses(prev => ({
+              ...prev,
+              [eventId]: null
+            }));
           } else {
             toast.info('Você não estava confirmado neste jogo');
           }
-          setUserResponses(prev => ({
-            ...prev,
-            [eventId]: null
-          }));
         }
       }
 
@@ -688,6 +712,8 @@ export function Calendar() {
                                 variant="outline"
                                 className="flex-1 text-green-400 hover:text-green-300"
                                 size="sm"
+                                disabled={isJogoPassado(event)}
+                                title={isJogoPassado(event) ? 'Não é possível reagendar jogos que já passaram' : ''}
                               >
                                 <RotateCcw className="w-4 h-4 mr-2" />
                                 Reagendar
@@ -709,6 +735,8 @@ export function Calendar() {
                                 variant="outline"
                                 className="flex-1"
                                 size="sm"
+                                disabled={isJogoPassado(event)}
+                                title={isJogoPassado(event) ? 'Não é possível editar jogos que já passaram' : ''}
                               >
                                 <Edit className="w-4 h-4 mr-2" />
                                 Editar
@@ -749,8 +777,9 @@ export function Calendar() {
                         <div className="flex gap-2">
                           <Button
                             onClick={() => handleConfirmPresence(event.id, 'confirmed')}
+                            disabled={userResponses[event.id] === 'confirmed'}
                             className={`flex-1 ${userResponses[event.id] === 'confirmed'
-                              ? 'bg-green-600 hover:bg-green-700'
+                              ? 'bg-green-600 hover:bg-green-700 cursor-not-allowed opacity-75'
                               : 'bg-gray-700 hover:bg-green-600'
                               }`}
                           >
@@ -759,9 +788,10 @@ export function Calendar() {
                           </Button>
                           <Button
                             onClick={() => handleConfirmPresence(event.id, 'declined')}
+                            disabled={userResponses[event.id] !== 'confirmed'}
                             className={`flex-1 ${userResponses[event.id] === 'confirmed'
                               ? 'bg-gray-700 hover:bg-red-600'
-                              : 'bg-gray-700 hover:bg-red-600'
+                              : 'bg-gray-700 hover:bg-red-600 cursor-not-allowed opacity-50'
                               }`}
                           >
                             <XCircle className="w-4 h-4 mr-2" />
@@ -1033,8 +1063,28 @@ function JogoEditForm({
     }
   }, [jogo]);
 
+  // Verificar se o jogo já passou
+  const isJogoPassado = (): boolean => {
+    if (!jogo?.data_jogo) return false;
+    
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    
+    const dataJogo = new Date(jogo.data_jogo);
+    dataJogo.setHours(0, 0, 0, 0);
+    
+    return dataJogo < hoje;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Verificar se está tentando editar um jogo que já passou
+    if (jogo && isJogoPassado()) {
+      toast.error('Não é possível editar jogos que já passaram');
+      return;
+    }
+    
     if (!formData.nome_jogo.trim()) {
       toast.error('O nome do jogo é obrigatório');
       return;
@@ -1052,6 +1102,26 @@ function JogoEditForm({
       status: formData.status as any,
     });
   };
+
+  // Se o jogo já passou, mostrar mensagem e desabilitar edição
+  if (jogo && isJogoPassado()) {
+    return (
+      <div className="space-y-4">
+        <div className="mb-4">
+          <h3 className="text-xl text-white mb-2">Editar Jogo</h3>
+          <div className="bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-4">
+            <p className="text-yellow-400">
+              Este jogo já passou e não pode ser editado.
+            </p>
+          </div>
+        </div>
+        <Button type="button" variant="outline" onClick={onCancel} className="w-full">
+          <X className="w-4 h-4 mr-2" />
+          Fechar
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -1372,6 +1442,7 @@ function ConfirmationsModal({
   loading: boolean;
   onClose: () => void;
 }) {
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const monthNames = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
@@ -1419,45 +1490,56 @@ function ConfirmationsModal({
             </div>
           ) : (
             <div className="space-y-2">
-              {users.map((user, index) => (
-                <div
-                  key={`user-${user.id}-${index}`}
-                  className="flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg border border-gray-700/50"
-                >
-                  {user.picture ? (
-                    <img
-                      key={`picture-${user.id}-${index}`}
-                      src={user.picture}
-                      alt={user.name || user.email}
-                      className="w-10 h-10 rounded-full object-cover border-2 border-green-500/50 flex-shrink-0"
-                      loading="lazy"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center border-2 border-green-500/50 flex-shrink-0">
-                      <User className="w-5 h-5 text-gray-400" />
+              {users.map((user, index) => {
+                const hasPicture = user.picture && user.picture.trim().length > 0;
+                const imageFailed = imageErrors.has(user.id);
+                return (
+                  <div
+                    key={`user-${user.id}-${index}`}
+                    className="flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg border border-gray-700/50"
+                  >
+                    {hasPicture && !imageFailed ? (
+                      <img
+                        src={user.picture!}
+                        alt={user.nome_guerra || user.name || user.email}
+                        className="w-10 h-10 rounded-full object-cover border-2 border-green-500/50 flex-shrink-0"
+                        referrerPolicy="no-referrer"
+                        crossOrigin="anonymous"
+                        loading="lazy"
+                        onError={() => {
+                          setImageErrors(prev => new Set(prev).add(user.id));
+                        }}
+                        onLoad={() => {
+                          setImageErrors(prev => {
+                            const newSet = new Set(prev);
+                            newSet.delete(user.id);
+                            return newSet;
+                          });
+                        }}
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center border-2 border-green-500/50 flex-shrink-0">
+                        <User className="w-5 h-5 text-gray-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-semibold truncate">
+                        {user.nome_guerra || user.name || user.email.split('@')[0]}
+                      </p>
+                      {user.nome_guerra && user.name && (
+                        <p className="text-xs text-gray-400 truncate">
+                          {user.name}
+                        </p>
+                      )}
+                      {/* {user.patent && (
+                        <p className="text-xs text-amber-400 capitalize">
+                          {user.patent}
+                        </p>
+                      )} */}
                     </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-semibold truncate">
-                      {user.nome_guerra || user.name || user.email.split('@')[0]}
-                    </p>
-                    {user.nome_guerra && user.name && (
-                      <p className="text-xs text-gray-400 truncate">
-                        {user.name}
-                      </p>
-                    )}
-                    {user.patent && (
-                      <p className="text-xs text-amber-400 capitalize">
-                        {user.patent}
-                      </p>
-                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

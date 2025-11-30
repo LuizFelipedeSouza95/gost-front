@@ -10,6 +10,7 @@ export interface Usuario {
   patent?: string;
   active: boolean;
   squad?: any;
+  telefone?: string | null;
 }
 
 export interface UsuariosResponse {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Shield, Users, Calendar, FileText, Image, UserPlus } from 'lucide-react';
+import { Shield, Users, Calendar, FileText, Image, UserPlus, CalendarDays } from 'lucide-react';
 import { equipeService, EquipeInfo } from '../services/equipe.service';
 import { getUserInfo, isAuthenticated } from '../utils/auth';
 import { getBackendUrl } from '../config/urls';
@@ -97,22 +97,28 @@ export function Hero({ setActiveSection }: HeroProps) {
       description: 'Junte-se à nossa equipe',
       action: () => setActiveSection('recrutamento'),
     },
+    {
+      icon: CalendarDays,
+      title: 'Agenda',
+      description: 'Eventos e atividades do time',
+      action: () => setActiveSection('agenda'),
+    },
   ];
 
   return (
     <div className="pt-10">
       {/* Hero Section */}
-      <section className="relative py-20 px-4 overflow-hidden">
+      <section className="relative py-12 px-4 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-amber-600/10 to-transparent"></div>
 
         <div className="max-w-7xl mx-auto relative">
-          <div className="text-center mb-12">
-            <div className="flex justify-center">
+          <div className="text-center mb-12 -mt-8">
+            <div className="flex justify-center mb-4">
               <img
                 src={equipeInfo?.logo_url || "/path_gost.svg"}
                 alt={equipeInfo?.nome || "imagem da equipe"}
-                className="w-40 h-40 sm:w-50 sm:h-50 object-contain"
-                style={{ maxWidth: '300px', maxHeight: '300px' }}
+                className="w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 lg:w-[28rem] lg:h-[28rem] object-contain"
+                style={{ maxWidth: '700px', maxHeight: '700px' }}
                 onError={(e) => {
                   const img = e.currentTarget as HTMLImageElement;
                   if (!img.src.endsWith("/path_gost.svg")) {

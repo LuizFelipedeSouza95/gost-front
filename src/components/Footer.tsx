@@ -41,6 +41,9 @@ export function Footer() {
 
   // Função para navegar para uma seção
   const handleNavigate = (section: string) => {
+    // Rola para o topo da página
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Dispara o evento para mudar a seção
     window.dispatchEvent(new CustomEvent('changeSection', { detail: section }));
   };
 

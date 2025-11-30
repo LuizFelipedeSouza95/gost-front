@@ -19,6 +19,7 @@ import { TreinamentoSection } from './components/TreinamentoSection';
 import { ParceirosSection } from './components/ParceirosSection';
 // import { MapaSection } from './components/MapaSection';
 import { ConfiguracoesSection } from './components/ConfiguracoesSection';
+import { AgendaSection } from './components/AgendaSection';
 import { Footer } from './components/Footer';
 import { Toaster } from './components/ui/sonner';
 
@@ -57,6 +58,7 @@ export default function App() {
       {/* {activeSection === 'mapa' && <MapaSection />} */}
       {activeSection === 'recrutamento' && <RecruitmentSection />}
       {activeSection === 'recrutamento-admin' && <RecruitmentAdminSection />}
+      {activeSection === 'agenda' && <AgendaSection />}
       {activeSection === 'configuracoes' && <ConfiguracoesSection />}
 
       <Footer />

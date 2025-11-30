@@ -8,6 +8,7 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { ConfirmDialog } from './ui/confirm-dialog';
 import { azureBlobService } from '../services/azure-blob.service';
+import { equipeService } from '../services/equipe.service';
 
 export function GallerySection() {
   const [images, setImages] = useState<Galeria[]>([]);
@@ -20,6 +21,7 @@ export function GallerySection() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; imagemUrl?: string } | null>(null);
+  const [equipeNome, setEquipeNome] = useState<string>('GOST');
 
   const filters = ['Todos', 'Operação', 'Treinamento', 'Equipamento'];
   
@@ -33,7 +35,19 @@ export function GallerySection() {
   useEffect(() => {
     checkAdmin();
     loadImages();
+    loadEquipeNome();
   }, []);
+
+  const loadEquipeNome = async () => {
+    try {
+      const response = await equipeService.get();
+      if (response.success && response.data?.nome) {
+        setEquipeNome(response.data.nome);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar nome da equipe:', error);
+    }
+  };
 
   const checkAdmin = async () => {
     try {
@@ -175,24 +189,11 @@ export function GallerySection() {
     <div className="pt-24 pb-16 px-4 min-h-screen">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-12">
-          <h1 className="text-4xl text-white mb-4">Galeria de Operações</h1>
+          <h1 className="text-4xl text-white mb-4">Galeria {equipeNome}</h1>
           <p className="text-gray-400">
             Registros das nossas operações, treinamentos e eventos
           </p>
         </div>
-
-        {/* Botão de adicionar (apenas admin) */}
-        {isAdmin && (
-          <div className="mb-6 flex justify-end">
-            <Button
-              onClick={() => setShowUploadModal(true)}
-              className="bg-amber-600 hover:bg-amber-700 text-white"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Adicionar Foto
-            </Button>
-          </div>
-        )}
 
         {/* Se um álbum está selecionado, mostrar as fotos do álbum */}
         {selectedAlbum ? (
@@ -669,8 +670,46 @@ function UploadModal({
       return;
     }
 
-    // Validação para álbum (obrigatório)
-    const finalAlbum = useNewAlbum ? newAlbum.trim() : album;
+    // Validação para Operação - nome do álbum é obrigatório
+    if (categoria === 'Operação' && !newAlbum.trim()) {
+      toast.error('Por favor, informe o nome da operação (será usado como nome do álbum)');
+      return;
+    }
+
+    // Determinar o nome do álbum
+    let finalAlbum: string;
+    
+    // Se for Treinamento e tiver jogo selecionado, usar o nome do jogo + data como álbum (ou o nome editado)
+    if (categoria === 'Treinamento' && jogoId) {
+      const selectedJogo = jogos.find(j => j.id === jogoId);
+      if (newAlbum.trim()) {
+        // Se o usuário editou o nome, usar o nome editado
+        finalAlbum = newAlbum.trim();
+      } else if (selectedJogo && selectedJogo.nome_jogo) {
+        // Se não editou, usar nome do jogo + data
+        let formattedDate = '';
+        if (selectedJogo.data_jogo) {
+          const dateStr = selectedJogo.data_jogo.split('T')[0];
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const jogoDate = new Date(year, month - 1, day);
+          formattedDate = jogoDate.toLocaleDateString('pt-BR');
+        }
+        finalAlbum = formattedDate 
+          ? `${selectedJogo.nome_jogo} - ${formattedDate}`
+          : selectedJogo.nome_jogo;
+      } else {
+        finalAlbum = 'Treinamento';
+      }
+    }
+    // Se for Operação, usar o nome informado no campo de novo álbum
+    else if (categoria === 'Operação') {
+      finalAlbum = newAlbum.trim();
+    }
+    // Caso contrário, usar a lógica normal
+    else {
+      finalAlbum = useNewAlbum ? newAlbum.trim() : album;
+    }
+    
     if (!finalAlbum) {
       toast.error('Por favor, informe ou selecione um álbum');
       return;
@@ -820,8 +859,17 @@ function UploadModal({
               <select
                 value={categoria}
                 onChange={(e) => {
-                  setCategoria(e.target.value);
+                  const newCategoria = e.target.value;
+                  setCategoria(newCategoria);
                   setJogoId(''); // Reset jogo selection when changing category
+                  setNewAlbum(''); // Reset album name when changing category
+                  
+                  // Se for Operação ou Treinamento, forçar criação de novo álbum
+                  if (newCategoria === 'Operação' || newCategoria === 'Treinamento') {
+                    setUseNewAlbum(true);
+                  } else {
+                    setUseNewAlbum(existingAlbums.length === 0); // Reset to new album if no existing albums
+                  }
                 }}
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
               >
@@ -849,7 +897,27 @@ function UploadModal({
                 ) : (
                   <select
                     value={jogoId}
-                    onChange={(e) => setJogoId(e.target.value)}
+                    onChange={(e) => {
+                      setJogoId(e.target.value);
+                      // Quando selecionar um jogo, usar o nome do jogo + data como nome do álbum
+                      const selectedJogo = jogos.find(j => j.id === e.target.value);
+                      if (selectedJogo && selectedJogo.nome_jogo) {
+                        // Formatar data do jogo
+                        let formattedDate = '';
+                        if (selectedJogo.data_jogo) {
+                          const dateStr = selectedJogo.data_jogo.split('T')[0];
+                          const [year, month, day] = dateStr.split('-').map(Number);
+                          const jogoDate = new Date(year, month - 1, day);
+                          formattedDate = jogoDate.toLocaleDateString('pt-BR');
+                        }
+                        // Combinar nome do jogo com data
+                        const albumName = formattedDate 
+                          ? `${selectedJogo.nome_jogo} - ${formattedDate}`
+                          : selectedJogo.nome_jogo;
+                        setNewAlbum(albumName);
+                        setUseNewAlbum(true); // Forçar criação de novo álbum com o nome do jogo + data
+                      }
+                    }}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
                     required
                   >
@@ -876,63 +944,98 @@ function UploadModal({
             <div>
               <label className="block text-sm text-gray-400 mb-2">Álbum *</label>
               <div className="space-y-3">
-                {existingAlbums.length > 0 && (
+                {/* Se categoria for Treinamento e tiver jogo selecionado, forçar novo álbum com nome do jogo */}
+                {categoria === 'Treinamento' && jogoId ? (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2">
+                      O álbum será criado automaticamente com o nome do treinamento selecionado
+                    </p>
+                    <input
+                      type="text"
+                      value={newAlbum}
+                      onChange={(e) => setNewAlbum(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                      placeholder="Nome do álbum (preenchido automaticamente)"
+                    />
+                  </div>
+                ) : categoria === 'Operação' ? (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Informe o nome da operação. Este nome será usado como nome do álbum.
+                    </p>
+                    <input
+                      type="text"
+                      value={newAlbum}
+                      onChange={(e) => {
+                        setNewAlbum(e.target.value);
+                        setUseNewAlbum(true); // Forçar criação de novo álbum
+                      }}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                      placeholder="Ex: Operação Cerrado, Operação Deserto, etc."
+                      required
+                    />
+                  </div>
+                ) : (
                   <>
+                    {existingAlbums.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            id="existing-album"
+                            checked={!useNewAlbum}
+                            onChange={() => {
+                              setUseNewAlbum(false);
+                              setNewAlbum('');
+                            }}
+                            className="w-4 h-4 text-amber-600"
+                          />
+                          <label htmlFor="existing-album" className="text-gray-300">
+                            Selecionar álbum existente
+                          </label>
+                        </div>
+                        {!useNewAlbum && (
+                          <select
+                            value={album}
+                            onChange={(e) => setAlbum(e.target.value)}
+                            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                          >
+                            <option value="">Selecione um álbum</option>
+                            {existingAlbums.map((alb) => (
+                              <option key={alb} value={alb}>
+                                {alb}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </>
+                    )}
+
                     <div className="flex items-center gap-2">
                       <input
                         type="radio"
-                        id="existing-album"
-                        checked={!useNewAlbum}
+                        id="new-album"
+                        checked={useNewAlbum || existingAlbums.length === 0}
                         onChange={() => {
-                          setUseNewAlbum(false);
-                          setNewAlbum('');
+                          setUseNewAlbum(true);
+                          setAlbum('');
                         }}
                         className="w-4 h-4 text-amber-600"
                       />
-                      <label htmlFor="existing-album" className="text-gray-300">
-                        Selecionar álbum existente
+                      <label htmlFor="new-album" className="text-gray-300">
+                        {existingAlbums.length === 0 ? 'Criar álbum (nenhum álbum existente)' : 'Criar novo álbum'}
                       </label>
                     </div>
-                    {!useNewAlbum && (
-                      <select
-                        value={album}
-                        onChange={(e) => setAlbum(e.target.value)}
+                    {(useNewAlbum || existingAlbums.length === 0) && (
+                      <input
+                        type="text"
+                        value={newAlbum}
+                        onChange={(e) => setNewAlbum(e.target.value)}
                         className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
-                      >
-                        <option value="">Selecione um álbum</option>
-                        {existingAlbums.map((alb) => (
-                          <option key={alb} value={alb}>
-                            {alb}
-                          </option>
-                        ))}
-                      </select>
+                        placeholder="Nome do novo álbum"
+                      />
                     )}
                   </>
-                )}
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    id="new-album"
-                    checked={useNewAlbum || existingAlbums.length === 0}
-                    onChange={() => {
-                      setUseNewAlbum(true);
-                      setAlbum('');
-                    }}
-                    className="w-4 h-4 text-amber-600"
-                  />
-                  <label htmlFor="new-album" className="text-gray-300">
-                    {existingAlbums.length === 0 ? 'Criar álbum (nenhum álbum existente)' : 'Criar novo álbum'}
-                  </label>
-                </div>
-                {(useNewAlbum || existingAlbums.length === 0) && (
-                  <input
-                    type="text"
-                    value={newAlbum}
-                    onChange={(e) => setNewAlbum(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
-                    placeholder="Nome do novo álbum"
-                  />
                 )}
               </div>
             </div>

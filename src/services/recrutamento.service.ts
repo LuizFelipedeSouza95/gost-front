@@ -14,7 +14,7 @@ export interface Recrutamento {
   instagram?: string | null;
   etapa_inscricao: 'pendente' | 'aprovado' | 'reprovado';
   etapa_avaliacao: 'pendente' | 'aprovado' | 'reprovado';
-  etapa_qa: 'pendente' | 'aprovado' | 'reprovado';
+  etapa_qa: 'pendente' | 'aprovado' | 'reprovado' | 'iniciado';
   etapa_votacao: 'pendente' | 'aprovado' | 'reprovado';
   etapa_integracao: 'pendente' | 'aprovado' | 'reprovado';
   responsavel?: {
@@ -89,7 +89,7 @@ export const recrutamentoService = {
   updateStage: async (
     id: string,
     etapa: 'inscricao' | 'avaliacao' | 'qa' | 'votacao' | 'integracao',
-    status: 'pendente' | 'aprovado' | 'reprovado',
+    status: 'pendente' | 'aprovado' | 'reprovado' | 'iniciado',
     observacoes?: string
   ): Promise<{ success: boolean; data: Recrutamento }> => {
     return api.put(
