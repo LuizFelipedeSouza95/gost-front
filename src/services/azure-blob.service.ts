@@ -121,20 +121,35 @@ class AzureBlobService {
       const blobUrl = blockBlobClient.url;
       
       // Validar que a URL é válida
-      if (!blobUrl || typeof blobUrl !== 'string') {
+      if (!blobUrl || typeof blobUrl !== 'string' || blobUrl.trim() === '') {
         throw new Error('URL gerada é inválida ou vazia');
       }
 
-      // Tentar validar a URL
+      // Tentar validar a URL (com tratamento robusto para mobile)
       try {
-        const urlObj = new URL(blobUrl);
+        // Verificar se é uma URL válida antes de criar o objeto URL
+        const trimmedUrl = blobUrl.trim();
+        if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+          throw new Error('URL não começa com http:// ou https://');
+        }
+        
+        // Criar objeto URL para validar (pode falhar em mobile se URL estiver malformada)
+        const urlObj = new URL(trimmedUrl);
         if (!urlObj.protocol || !urlObj.hostname) {
           throw new Error('URL não possui protocolo ou hostname válido');
         }
-        return blobUrl;
+        return trimmedUrl;
       } catch (urlError: any) {
-        console.error('Erro ao validar URL:', urlError);
-        console.error('URL gerada:', blobUrl);
+        // Em caso de erro, logar mas não quebrar o fluxo se a URL parece válida
+        console.warn('Aviso ao validar URL:', urlError);
+        console.warn('URL gerada:', blobUrl);
+        
+        // Se a URL parece válida mesmo com erro de validação, retornar mesmo assim
+        if (blobUrl.startsWith('http://') || blobUrl.startsWith('https://')) {
+          console.warn('Retornando URL mesmo com aviso de validação');
+          return blobUrl.trim();
+        }
+        
         throw new Error(`Erro ao gerar URL da imagem: ${urlError.message || 'URL inválida'}`);
       }
     } catch (error: any) {
@@ -168,8 +183,25 @@ class AzureBlobService {
         throw new Error('Container não inicializado');
       }
 
+      // Validar URL antes de fazer fetch
+      if (!imageUrl || typeof imageUrl !== 'string' || imageUrl.trim() === '') {
+        throw new Error('URL da imagem é inválida ou vazia');
+      }
+
+      const trimmedUrl = imageUrl.trim();
+      
+      // Validar formato da URL
+      try {
+        if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+          throw new Error('URL deve começar com http:// ou https://');
+        }
+        new URL(trimmedUrl); // Validar formato
+      } catch (urlError: any) {
+        throw new Error(`URL inválida: ${urlError.message || 'Formato de URL não suportado'}`);
+      }
+
       // Fazer download da imagem
-      const response = await fetch(imageUrl);
+      const response = await fetch(trimmedUrl);
       if (!response.ok) {
         throw new Error(`Erro ao baixar imagem: ${response.statusText}`);
       }
@@ -206,11 +238,22 @@ class AzureBlobService {
     }
 
     try {
+      // Validar URL antes de processar
+      if (!imageUrl || typeof imageUrl !== 'string' || imageUrl.trim() === '') {
+        throw new Error('URL da imagem é inválida ou vazia');
+      }
+
       // Extrair o nome do blob da URL
       let blobName: string;
       
       try {
-        const url = new URL(imageUrl);
+        // Verificar se é uma URL válida antes de criar o objeto URL
+        const trimmedUrl = imageUrl.trim();
+        if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+          throw new Error('URL não começa com http:// ou https://');
+        }
+
+        const url = new URL(trimmedUrl);
         // Remove o primeiro segmento (container name) do pathname
         // Exemplo: /galeria/imagem.jpg -> imagem.jpg
         const pathParts = url.pathname.split('/').filter(part => part.length > 0);
@@ -221,9 +264,10 @@ class AzureBlobService {
           // Se não houver container no path, usar o pathname completo
           blobName = url.pathname.replace(/^\//, '');
         }
-      } catch (urlError) {
+      } catch (urlError: any) {
         // Se não for uma URL válida, tentar extrair o nome do blob de outra forma
         // Pode ser que seja apenas o caminho relativo
+        console.warn('Erro ao processar URL, tentando método alternativo:', urlError);
         if (imageUrl.includes('/')) {
           const parts = imageUrl.split('/');
           blobName = parts.slice(-2).join('/'); // Pega os últimos 2 segmentos (container/nome)

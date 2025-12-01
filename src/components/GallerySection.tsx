@@ -25,6 +25,35 @@ export function GallerySection() {
 
   const filters = ['Todos', 'Operação', 'Treinamento', 'Equipamento'];
   
+  // Função helper para validar e sanitizar URLs
+  const getValidImageUrl = (url?: string | null, fallback?: string | null): string => {
+    if (!url && !fallback) {
+      return 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23374151" width="400" height="300"/%3E%3Ctext fill="%239ca3af" font-family="sans-serif" font-size="18" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImagem não disponível%3C/text%3E%3C/svg%3E';
+    }
+    
+    const imageUrl = url || fallback || '';
+    
+    // Se já é uma data URL, retornar diretamente
+    if (imageUrl.startsWith('data:')) {
+      return imageUrl;
+    }
+    
+    // Validar se é uma URL válida
+    try {
+      // Se não começa com http:// ou https://, pode ser uma URL relativa inválida
+      if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+        return 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23374151" width="400" height="300"/%3E%3Ctext fill="%239ca3af" font-family="sans-serif" font-size="18" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImagem não disponível%3C/text%3E%3C/svg%3E';
+      }
+      
+      // Tentar criar um objeto URL para validar
+      new URL(imageUrl);
+      return imageUrl;
+    } catch (error) {
+      console.warn('URL inválida detectada:', imageUrl, error);
+      return 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23374151" width="400" height="300"/%3E%3Ctext fill="%239ca3af" font-family="sans-serif" font-size="18" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImagem não disponível%3C/text%3E%3C/svg%3E';
+    }
+  };
+  
   const getCategoryFromImage = (image: Galeria): string => {
     if (image.categoria) return image.categoria;
     if (image.is_operacao) return 'Operação';
@@ -207,6 +236,7 @@ export function GallerySection() {
             isAdmin={isAdmin}
             getCategoryFromImage={getCategoryFromImage}
             formatDate={formatDate}
+            getValidImageUrl={getValidImageUrl}
           />
         ) : (
           <>
@@ -265,7 +295,7 @@ export function GallerySection() {
                       <div className="aspect-[4/3] relative overflow-hidden bg-gray-900">
                         {thumbnail ? (
                           <img
-                            src={thumbnail.thumbnail_url || thumbnail.imagem_url}
+                            src={getValidImageUrl(thumbnail.thumbnail_url, thumbnail.imagem_url)}
                             alt={albumName}
                             className="w-full h-full object-cover"
                             onError={(e) => {
@@ -301,7 +331,7 @@ export function GallerySection() {
                     <div className="aspect-[4/3] relative overflow-hidden bg-gray-900">
                       {noAlbum[0] ? (
                         <img
-                          src={noAlbum[0].thumbnail_url || noAlbum[0].imagem_url}
+                          src={getValidImageUrl(noAlbum[0].thumbnail_url, noAlbum[0].imagem_url)}
                           alt="Sem Álbum"
                           className="w-full h-full object-cover"
                           onError={(e) => {
@@ -380,7 +410,7 @@ export function GallerySection() {
 
               <div className="max-w-5xl w-full">
                 <img
-                  src={currentImage.imagem_url}
+                  src={getValidImageUrl(currentImage.imagem_url)}
                   alt={currentImage.titulo || 'Imagem da galeria'}
                   className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
                   onError={(e) => {
@@ -445,6 +475,7 @@ function AlbumView({
   isAdmin,
   getCategoryFromImage,
   formatDate,
+  getValidImageUrl,
 }: {
   albumName: string;
   images: Galeria[];
@@ -455,6 +486,7 @@ function AlbumView({
   isAdmin: boolean;
   getCategoryFromImage: (image: Galeria) => string;
   formatDate: (dateString: string) => string;
+  getValidImageUrl: (url?: string | null, fallback?: string | null) => string;
 }) {
   const displayName = albumName === '__NO_ALBUM__' ? 'Sem Álbum' : albumName;
 
@@ -492,7 +524,7 @@ function AlbumView({
               onClick={() => onImageClick(image)}
             >
               <img
-                src={image.thumbnail_url || image.imagem_url}
+                src={getValidImageUrl(image.thumbnail_url, image.imagem_url)}
                 alt={image.titulo || 'Imagem da galeria'}
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                 onError={(e) => {

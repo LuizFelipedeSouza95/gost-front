@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UsersRound, Building2, Shield, Edit, Trash2, Plus, Save, X, FileText, ChevronDown, ChevronUp, UserPlus, Newspaper, Loader2, Calendar, User, Tag, Handshake, Mail, Phone, Image as ImageIcon, Folder, Upload, ArrowLeft, CalendarDays, Clock, MapPin } from 'lucide-react';
+import { Users, UsersRound, Building2, Shield, Edit, Trash2, Plus, Save, X, FileText, ChevronDown, ChevronUp, UserPlus, Newspaper, Loader2, Calendar, User, Tag, Handshake, Mail, Phone, Image as ImageIcon, Folder, Upload, ArrowLeft, CalendarDays, Clock, MapPin, Target, Skull } from 'lucide-react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -106,16 +106,46 @@ export function ConfiguracoesSection() {
     }
   };
 
-  const handleCreateAgenda = async (data: Partial<AgendaItem>) => {
+  const handleCreateAgenda = async (data: Partial<AgendaItem>, isTwoDayEvent?: boolean, secondDayData?: Partial<AgendaItem>) => {
     try {
+      console.log('Criando evento:', { data, isTwoDayEvent, secondDayData });
+      
+      // Criar primeiro item
       const response = await agendaService.create(data);
-      if (response.success) {
+      if (!response.success) {
+        toast.error('Erro ao criar primeiro dia do evento');
+        return false;
+      }
+
+      console.log('Primeiro item criado com sucesso:', response.data);
+
+      // Se for evento de 2 dias, criar o segundo item também
+      if (isTwoDayEvent && secondDayData) {
+        console.log('Criando segundo item:', secondDayData);
+        const secondResponse = await agendaService.create(secondDayData);
+        if (secondResponse.success) {
+          console.log('Segundo item criado com sucesso:', secondResponse.data);
+          toast.success('Evento de 2 dias criado com sucesso!');
+          setCreatingAgenda(false);
+          loadAgenda();
+          return true;
+        } else {
+          console.error('Erro ao criar segundo item:', secondResponse);
+          toast.warning('Primeiro dia criado, mas houve erro ao criar o segundo dia.');
+          setCreatingAgenda(false);
+          loadAgenda();
+          return false;
+        }
+      } else {
         toast.success('Item da agenda criado com sucesso!');
         setCreatingAgenda(false);
         loadAgenda();
+        return true;
       }
     } catch (error: any) {
+      console.error('Erro ao criar item da agenda:', error);
       toast.error('Erro ao criar item da agenda: ' + (error.message || 'Erro desconhecido'));
+      return false;
     }
   };
 
@@ -3433,16 +3463,16 @@ function GaleriaManagement({
   }
 
   return (
-    <Card className="p-6 bg-gray-800/50 border-amber-600/30">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl text-white">Gestão de Galeria</h2>
-        <div className="flex items-center gap-3">
-          <Badge className="bg-amber-600/20 text-amber-400 border-amber-600/50">
+    <Card className="p-4 sm:p-6 bg-gray-800/50 border-amber-600/30">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <h2 className="text-xl sm:text-2xl text-white">Gestão de Galeria</h2>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <Badge className="bg-amber-600/20 text-amber-400 border-amber-600/50 text-center sm:text-left">
             {galerias.length} {galerias.length === 1 ? 'imagem' : 'imagens'}
           </Badge>
           <Button
             onClick={() => setShowUploadModal(true)}
-            className="bg-amber-600 hover:bg-amber-700"
+            className="bg-amber-600 hover:bg-amber-700 w-full sm:w-auto"
           >
             <Plus className="w-4 h-4 mr-2" />
             Adicionar Fotos
@@ -3466,8 +3496,14 @@ function GaleriaManagement({
             return (
               <Card
                 key={albumName}
-                className="bg-gray-900/50 border-amber-600/30 overflow-hidden cursor-pointer hover:border-amber-500 transition-all hover:scale-105 relative group"
-                onClick={() => setSelectedAlbum(albumName)}
+                className="bg-gray-900/50 border-amber-600/30 overflow-hidden cursor-pointer hover:border-amber-500 transition-all hover:scale-105 relative group touch-manipulation"
+                onClick={(e) => {
+                  // Não abrir se clicou no botão de excluir
+                  if ((e.target as HTMLElement).closest('button[title="Excluir álbum"]')) {
+                    return;
+                  }
+                  setSelectedAlbum(albumName);
+                }}
               >
                 <div className="aspect-[4/3] relative overflow-hidden bg-gray-800">
                   {thumbnail ? (
@@ -3499,10 +3535,15 @@ function GaleriaManagement({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    e.preventDefault();
                     handleDeleteAlbumClick(albumName);
                   }}
-                  className="absolute top-2 right-2 p-2 bg-red-600/90 hover:bg-red-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                  onTouchStart={(e) => {
+                    e.stopPropagation();
+                  }}
+                  className="absolute top-2 right-2 p-2 bg-red-600/90 hover:bg-red-700 active:bg-red-800 rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-20 touch-manipulation"
                   title="Excluir álbum"
+                  type="button"
                 >
                   <Trash2 className="w-4 h-4 text-white" />
                 </button>
@@ -3513,7 +3554,7 @@ function GaleriaManagement({
           {/* Card para imagens sem álbum */}
           {noAlbum.length > 0 && (
             <Card
-              className="bg-gray-900/50 border-amber-600/30 overflow-hidden cursor-pointer hover:border-amber-500 transition-all hover:scale-105"
+              className="bg-gray-900/50 border-amber-600/30 overflow-hidden cursor-pointer hover:border-amber-500 transition-all hover:scale-105 touch-manipulation"
               onClick={() => setSelectedAlbum('__NO_ALBUM__')}
             >
               <div className="aspect-[4/3] relative overflow-hidden bg-gray-800">
@@ -3748,8 +3789,16 @@ function GaleriaCard({
           <div className="flex gap-2">
             <Button
               size="sm"
-              onClick={() => onSave({ titulo, descricao, categoria, album })}
-              className="flex-1 bg-amber-600 hover:bg-amber-700 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onSave({ titulo, descricao, categoria, album });
+              }}
+              onTouchStart={(e) => {
+                e.stopPropagation();
+              }}
+              className="flex-1 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-xs touch-manipulation"
+              type="button"
             >
               <Save className="w-3 h-3 mr-1" />
               Salvar
@@ -3757,8 +3806,16 @@ function GaleriaCard({
             <Button
               size="sm"
               variant="outline"
-              onClick={onCancel}
-              className="flex-1 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onCancel();
+              }}
+              onTouchStart={(e) => {
+                e.stopPropagation();
+              }}
+              className="flex-1 text-xs touch-manipulation"
+              type="button"
             >
               <X className="w-3 h-3 mr-1" />
               Cancelar
@@ -3774,7 +3831,7 @@ function GaleriaCard({
       <img
         src={galeria.thumbnail_url || galeria.imagem_url}
         alt={galeria.titulo || 'Imagem'}
-        className="w-full h-48 object-cover"
+        className="w-full h-48 object-cover pointer-events-none"
       />
       <div className="p-3">
         <div className="flex items-start justify-between mb-2">
@@ -3796,9 +3853,17 @@ function GaleriaCard({
           <Button
             size="sm"
             variant="outline"
-            onClick={onEdit}
-            className="flex-1 text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onEdit();
+            }}
+            onTouchStart={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex-1 text-xs touch-manipulation"
             disabled={deleting}
+            type="button"
           >
             <Edit className="w-3 h-3 mr-1" />
             Editar
@@ -3806,9 +3871,17 @@ function GaleriaCard({
           <Button
             size="sm"
             variant="outline"
-            onClick={onDelete}
-            className="flex-1 text-xs text-red-400 hover:text-red-300 hover:border-red-500"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onDelete();
+            }}
+            onTouchStart={(e) => {
+              e.stopPropagation();
+            }}
+            className="flex-1 text-xs text-red-400 hover:text-red-300 hover:border-red-500 active:bg-red-600/20 touch-manipulation"
             disabled={deleting}
+            type="button"
           >
             {deleting ? (
               <Loader2 className="w-3 h-3 mr-1 animate-spin" />
@@ -4274,6 +4347,103 @@ function AgendaManagement({
   onSetCreatingAgenda: (creating: boolean) => void;
   onSetConfirmDeleteAgenda: (id: string | null) => void;
 }) {
+  const formatDateShort = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      return `${day}/${month}`;
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getEventIcon = (titulo: string, tipo?: string | null, size: 'sm' | 'md' = 'md') => {
+    const titleLower = titulo.toLowerCase();
+    const iconSize = size === 'sm' ? 'w-6 h-6' : 'w-8 h-8';
+    
+    if (titleLower.includes('specwar')) {
+      return <Shield className={`${iconSize} text-amber-500`} />;
+    }
+    if (titleLower.includes('parabellum')) {
+      return <Skull className={`${iconSize} text-gray-300`} />;
+    }
+    if (titleLower.includes('milsim')) {
+      return <Target className={`${iconSize} text-red-500`} />;
+    }
+    if (titleLower.includes('pandora') || titleLower.includes('fronteira') || titleLower.includes('combat zone') || titleLower.includes('vietnã')) {
+      return <Shield className={`${iconSize} text-amber-500`} />;
+    }
+    if (titleLower.includes('kivu') || titleLower.includes('radar')) {
+      return <Target className={`${iconSize} text-green-500`} />;
+    }
+    
+    // Ícone padrão
+    return <Calendar className={`${iconSize} text-amber-600`} />;
+  };
+
+  // Agrupar itens consecutivos do mesmo evento (para eventos de 2 dias)
+  const processItems = (): Array<{ item: AgendaItem; endDate?: string }> => {
+    if (agendaItems.length === 0) return [];
+
+    const sorted = [...agendaItems].sort((a, b) => {
+      const dateA = a.data.includes('T') ? a.data.split('T')[0] : a.data.split(' ')[0];
+      const dateB = b.data.includes('T') ? b.data.split('T')[0] : b.data.split(' ')[0];
+      return new Date(dateA).getTime() - new Date(dateB).getTime();
+    });
+
+    const processed: Array<{ item: AgendaItem; endDate?: string }> = [];
+    const used = new Set<number>();
+
+    sorted.forEach((current, i) => {
+      if (used.has(i)) return;
+
+      const currentDateStr = current.data.includes('T') ? current.data.split('T')[0] : current.data.split(' ')[0];
+      
+      // Normalizar a data para garantir formato correto
+      let currentDate: Date;
+      try {
+        currentDate = new Date(currentDateStr + 'T00:00:00');
+      } catch {
+        currentDate = new Date(currentDateStr);
+      }
+      
+      const nextDate = new Date(currentDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      const nextDateStr = nextDate.toISOString().split('T')[0];
+
+      // Verifica se há um evento no dia seguinte com o mesmo título
+      const nextIndex = sorted.findIndex(
+        (item, idx) => {
+          if (idx <= i || used.has(idx)) return false;
+          const itemDateStr = item.data.includes('T') ? item.data.split('T')[0] : item.data.split(' ')[0];
+          // Comparar títulos (case-insensitive) e datas normalizadas
+          return item.titulo.trim().toLowerCase() === current.titulo.trim().toLowerCase() && 
+                 itemDateStr === nextDateStr;
+        }
+      );
+
+      if (nextIndex !== -1) {
+        const nextItemDateStr = sorted[nextIndex].data.includes('T') 
+          ? sorted[nextIndex].data.split('T')[0] 
+          : sorted[nextIndex].data.split(' ')[0];
+        processed.push({
+          item: current,
+          endDate: formatDateShort(nextItemDateStr),
+        });
+        used.add(i);
+        used.add(nextIndex);
+      } else {
+        processed.push({ item: current });
+        used.add(i);
+      }
+    });
+
+    return processed;
+  };
+
+  const processedItems = processItems();
+
   if (loading) {
     return (
       <Card className="p-6 bg-gray-800/50 border-amber-600/30">
@@ -4285,110 +4455,154 @@ function AgendaManagement({
   }
 
   return (
-    <Card className="p-6 bg-gray-800/50 border-amber-600/30">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl text-white">Gerenciar Agenda</h2>
+    <Card className="p-4 sm:p-6 bg-gray-800/50 border-amber-600/30">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <h2 className="text-xl sm:text-2xl text-white">Gerenciar Agenda</h2>
         <Button
           onClick={() => onSetCreatingAgenda(true)}
           className="bg-amber-600 hover:bg-amber-700"
+          size="sm"
         >
           <Plus className="w-4 h-4 mr-2" />
           Adicionar Item
         </Button>
       </div>
 
-      {creatingAgenda && (
-        <AgendaForm
-          onSave={(data) => {
-            onCreateAgenda(data);
-            onSetCreatingAgenda(false);
-          }}
-          onCancel={() => onSetCreatingAgenda(false)}
-        />
-      )}
-
       {agendaItems.length === 0 ? (
         <div className="text-center py-8 text-gray-400">
           Nenhum item na agenda. Clique em "Adicionar Item" para começar.
         </div>
       ) : (
-        <div className="space-y-4">
-          {agendaItems.map((item) => (
-            <div
-              key={item.id}
-              className="p-4 bg-gray-900/50 rounded-lg border border-gray-700/50"
-            >
-              {editingAgenda === item.id ? (
-                <AgendaForm
-                  item={item}
-                  onSave={(data) => {
-                    onUpdateAgenda(item.id, data);
-                    onSetEditingAgenda(null);
-                  }}
-                  onCancel={() => onSetEditingAgenda(null)}
-                />
-              ) : (
-                <>
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-lg text-white font-semibold">{item.titulo}</h3>
-                        {item.tipo && (
-                          <Badge className="bg-amber-600/20 text-amber-400 border-amber-500/50">
-                            {item.tipo}
-                          </Badge>
-                        )}
-                        {!item.ativo && (
-                          <Badge className="bg-gray-600/20 text-gray-400 border-gray-500/50">
-                            Inativo
-                          </Badge>
-                        )}
+        <div className="space-y-3">
+          {processedItems.map((processed) => {
+            const { item, endDate } = processed;
+            const itemDateStr = item.data.includes('T') ? item.data.split('T')[0] : item.data.split(' ')[0];
+            const dateStr = formatDateShort(itemDateStr);
+            
+            // Extrair logo URL da descrição se existir (formato: logo_url:URL)
+            const logoMatch = item.descricao?.match(/logo_url:([^|]+)/);
+            const logoUrl = logoMatch ? logoMatch[1] : null;
+            
+            return (
+              <div
+                key={item.id}
+                className="bg-gray-800/30 hover:bg-gray-800/50 border border-gray-700/50 rounded-lg transition-colors"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 py-3 px-3 sm:px-4">
+                  {/* Data */}
+                  <div className="flex-shrink-0 flex items-center gap-2 flex-wrap">
+                    {endDate ? (
+                      <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                        <div className="bg-amber-600/90 text-white font-bold text-xs px-2 sm:px-3 py-1.5 rounded text-center whitespace-nowrap">
+                          {dateStr}
+                        </div>
+                        <span className="text-gray-400 text-xs sm:text-sm whitespace-nowrap">a</span>
+                        <div className="bg-amber-600/90 text-white font-bold text-xs px-2 sm:px-3 py-1.5 rounded text-center whitespace-nowrap">
+                          {endDate}
+                        </div>
                       </div>
-                      {item.descricao && (
-                        <p className="text-gray-300 mb-2">{item.descricao}</p>
+                    ) : (
+                      <div className="bg-amber-600/90 text-white font-bold text-xs px-2 sm:px-3 py-1.5 rounded min-w-[70px] sm:min-w-[80px] text-center">
+                        {dateStr}
+                      </div>
+                    )}
+                    {!item.ativo && (
+                      <Badge className="bg-gray-600/20 text-gray-400 border-gray-500/50 text-xs">
+                        Inativo
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Nome do evento */}
+                  <div className="flex-1 min-w-0 flex items-center gap-3">
+                    {/* Logo/Ícone - Mobile */}
+                    <div className="flex-shrink-0 sm:hidden">
+                      {logoUrl ? (
+                        <img 
+                          src={logoUrl} 
+                          alt={item.titulo}
+                          className="w-6 h-6 object-contain"
+                          onError={() => {
+                            // Se o logo falhar, mostrar o ícone padrão
+                          }}
+                        />
+                      ) : (
+                        getEventIcon(item.titulo, item.tipo, 'sm')
                       )}
-                      <div className="flex flex-wrap gap-4 text-sm text-gray-400">
-                        <span>
-                          <Calendar className="w-4 h-4 inline mr-1" />
-                          {new Date(item.data).toLocaleDateString('pt-BR')}
-                        </span>
-                        {item.hora && (
-                          <span>
-                            <Clock className="w-4 h-4 inline mr-1" />
-                            {item.hora}
-                          </span>
-                        )}
-                        {item.local && (
-                          <span>
-                            <MapPin className="w-4 h-4 inline mr-1" />
-                            {item.local}
-                          </span>
-                        )}
-                      </div>
                     </div>
-                    <div className="flex gap-2 ml-4">
-                      <Button
-                        onClick={() => onSetEditingAgenda(item.id)}
-                        variant="outline"
-                        size="sm"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        onClick={() => onSetConfirmDeleteAgenda(item.id)}
-                        variant="outline"
-                        size="sm"
-                        className="text-red-400 hover:text-red-300"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-white font-semibold text-sm sm:text-base md:text-lg truncate">
+                        {item.titulo}
+                      </h3>
+                    </div>
+
+                    {/* Logo/Ícone - Desktop */}
+                    <div className="flex-shrink-0 hidden sm:block">
+                      {logoUrl ? (
+                        <img 
+                          src={logoUrl} 
+                          alt={item.titulo}
+                          className="w-8 h-8 object-contain"
+                          onError={() => {
+                            // Se o logo falhar, mostrar o ícone padrão
+                          }}
+                        />
+                      ) : (
+                        getEventIcon(item.titulo, item.tipo, 'md')
+                      )}
                     </div>
                   </div>
-                </>
-              )}
-            </div>
-          ))}
+
+                  {/* Botões de ação */}
+                  <div className="flex gap-2 flex-shrink-0 justify-end sm:justify-start">
+                    <Button
+                      onClick={() => onSetEditingAgenda(item.id)}
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2 sm:px-3 touch-manipulation"
+                      type="button"
+                    >
+                      <Edit className="w-4 h-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Editar</span>
+                    </Button>
+                    <Button
+                      onClick={() => onSetConfirmDeleteAgenda(item.id)}
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2 sm:px-3 text-red-400 hover:text-red-300 border-red-500/50 hover:bg-red-600/20 touch-manipulation"
+                      type="button"
+                    >
+                      <Trash2 className="w-4 h-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Excluir</span>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
+      )}
+
+      {/* Modal para Criar/Editar Agenda */}
+      {(creatingAgenda || editingAgenda) && (
+        <AgendaEditModal
+          item={editingAgenda ? agendaItems.find(i => i.id === editingAgenda) : undefined}
+          onSave={async (data) => {
+            if (editingAgenda) {
+              await onUpdateAgenda(editingAgenda, data);
+              onSetEditingAgenda(null);
+            } else {
+              await onCreateAgenda(data);
+            }
+          }}
+          onCancel={() => {
+            if (editingAgenda) {
+              onSetEditingAgenda(null);
+            } else {
+              onSetCreatingAgenda(false);
+            }
+          }}
+        />
       )}
 
       <ConfirmDialog
@@ -4412,37 +4626,173 @@ function AgendaForm({
   onCancel,
 }: {
   item?: AgendaItem;
-  onSave: (data: Partial<AgendaItem>) => void;
+  onSave: (data: Partial<AgendaItem>, isTwoDayEvent?: boolean, secondDayData?: Partial<AgendaItem>) => void | Promise<void>;
   onCancel: () => void;
 }) {
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string>(item?.descricao?.includes('logo_url:') ? item.descricao.split('logo_url:')[1]?.split('|')[0] || '' : '');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
   const [formData, setFormData] = useState({
     titulo: item?.titulo || '',
-    descricao: item?.descricao || '',
-    data: item?.data ? item.data.split('T')[0] : '',
-    hora: item?.hora || '',
-    local: item?.local || '',
-    tipo: item?.tipo || '',
-    ordem: item?.ordem?.toString() || '',
+    data: item?.data ? (item.data.includes('T') ? item.data.split('T')[0] : item.data.split(' ')[0]) : '',
+    dataFim: '',
     ativo: item?.ativo !== undefined ? item.ativo : true,
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (item) {
+      // Extrair logo URL da descrição se existir (formato temporário: logo_url:URL|descrição)
+      const logoMatch = item.descricao?.match(/logo_url:([^|]+)/);
+      const extractedLogoUrl = logoMatch ? logoMatch[1] : '';
+      
+      setLogoUrl(extractedLogoUrl);
+      setLogoPreview(extractedLogoUrl || null);
+      
+      // Extrair descrição real (sem o logo_url)
+      const realDescricao = item.descricao?.replace(/logo_url:[^|]+\|?/, '').trim() || '';
+      
+      // Verificar se há um item relacionado (mesmo título, dia seguinte)
+      const itemDate = new Date(item.data);
+      const nextDate = new Date(itemDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      
+      setFormData({
+        titulo: item.titulo || '',
+        data: item.data.includes('T') ? item.data.split('T')[0] : item.data.split(' ')[0],
+        dataFim: '',
+        ativo: item.ativo !== undefined ? item.ativo : true,
+      });
+    } else {
+      setFormData({
+        titulo: '',
+        data: '',
+        dataFim: '',
+        ativo: true,
+      });
+      setLogoUrl('');
+      setLogoPreview(null);
+    }
+  }, [item]);
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Por favor, selecione apenas arquivos de imagem');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('O arquivo deve ter no máximo 10MB');
+      return;
+    }
+
+    setLogoFile(file);
+    
+    // Criar preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setLogoPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Fazer upload automaticamente
+    try {
+      setUploadingLogo(true);
+      
+      // Deletar logo antigo se existir e for do Blob Storage
+      if (logoUrl && logoUrl.includes('blob.core.windows.net')) {
+        try {
+          await azureBlobService.deleteImage(logoUrl);
+        } catch (deleteError) {
+          console.warn('Erro ao deletar logo antigo:', deleteError);
+        }
+      }
+
+      // Fazer upload do novo logo na pasta "agenda"
+      const uploadedLogoUrl = await azureBlobService.uploadImage(file, 'agenda');
+      setLogoUrl(uploadedLogoUrl);
+      setLogoPreview(uploadedLogoUrl);
+      toast.success('Logo enviado com sucesso!');
+    } catch (error: any) {
+      toast.error('Erro ao enviar logo: ' + (error.message || 'Erro desconhecido'));
+      setLogoFile(null);
+      setLogoPreview(logoUrl || null);
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.titulo.trim() || !formData.data) {
       toast.error('Título e data são obrigatórios');
       return;
     }
 
-    onSave({
-      titulo: formData.titulo.trim(),
-      descricao: formData.descricao.trim() || null,
-      data: formData.data,
-      hora: formData.hora.trim() || null,
-      local: formData.local.trim() || null,
-      tipo: formData.tipo.trim() || null,
-      ordem: formData.ordem ? parseInt(formData.ordem) : null,
-      ativo: formData.ativo,
-    });
+    // Garantir que a data está no formato correto (YYYY-MM-DD)
+    let formattedData = formData.data;
+    if (formattedData && !formattedData.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // Tentar converter se estiver em outro formato
+      const dateObj = new Date(formattedData);
+      if (!isNaN(dateObj.getTime())) {
+        formattedData = dateObj.toISOString().split('T')[0];
+      } else {
+        toast.error('Data inválida');
+        return;
+      }
+    }
+
+    // Preparar descrição com logo URL se existir
+    let descricao = '';
+    if (logoUrl) {
+      descricao = `logo_url:${logoUrl}`;
+    }
+
+    // Se há data fim e é diferente da data inicial, criar evento de 2 dias (apenas para novos itens)
+    if (!item && formData.dataFim && formData.dataFim !== formData.data) {
+      const dataInicio = new Date(formData.data);
+      const dataFim = new Date(formData.dataFim);
+      
+      // Validar que data fim é depois da data início
+      if (dataFim <= dataInicio) {
+        toast.error('A data fim deve ser posterior à data início');
+        return;
+      }
+
+      // Garantir formato correto da data fim
+      let formattedDataFim = formData.dataFim;
+      if (!formattedDataFim.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const dateObj = new Date(formattedDataFim);
+        if (!isNaN(dateObj.getTime())) {
+          formattedDataFim = dateObj.toISOString().split('T')[0];
+        }
+      }
+
+      // Criar evento de 2 dias - passar ambos os dados para onSave
+      await onSave({
+        titulo: formData.titulo.trim(),
+        data: formattedData,
+        descricao: descricao || null,
+        ativo: formData.ativo,
+      }, true, {
+        titulo: formData.titulo.trim(),
+        data: formattedDataFim,
+        descricao: descricao || null,
+        ativo: formData.ativo,
+      });
+    } else {
+      // Evento de 1 dia apenas ou edição
+      await onSave({
+        titulo: formData.titulo.trim(),
+        data: formattedData,
+        descricao: descricao || null,
+        ativo: formData.ativo,
+      });
+    }
   };
 
   return (
@@ -4454,72 +4804,157 @@ function AgendaForm({
           value={formData.titulo}
           onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
           className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+          placeholder="Nome do evento"
           required
         />
       </div>
 
-      <div>
-        <label className="block text-sm text-gray-400 mb-2">Descrição</label>
-        <textarea
-          value={formData.descricao}
-          onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
-          rows={3}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm text-gray-400 mb-2">Data *</label>
+          <label className="block text-sm text-gray-400 mb-2">Data Início *</label>
           <input
             type="date"
             value={formData.data}
-            onChange={(e) => setFormData({ ...formData, data: e.target.value })}
+            onChange={(e) => {
+              const newData = e.target.value;
+              setFormData({ ...formData, data: newData });
+              // Se data fim for anterior à nova data início, limpar data fim
+              if (formData.dataFim && newData > formData.dataFim) {
+                setFormData(prev => ({ ...prev, data: newData, dataFim: '' }));
+              }
+            }}
             className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
             required
           />
         </div>
         <div>
-          <label className="block text-sm text-gray-400 mb-2">Hora</label>
+          <label className="block text-sm text-gray-400 mb-2">Data Fim (Opcional)</label>
           <input
-            type="time"
-            value={formData.hora}
-            onChange={(e) => setFormData({ ...formData, hora: e.target.value })}
+            type="date"
+            value={formData.dataFim}
+            min={formData.data || undefined}
+            onChange={(e) => {
+              const newDataFim = e.target.value;
+              if (!formData.data || newDataFim >= formData.data) {
+                setFormData({ ...formData, dataFim: newDataFim });
+              } else {
+                toast.error('A data fim deve ser posterior ou igual à data início');
+              }
+            }}
             className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+            placeholder="Para eventos de 2 dias"
           />
+          {formData.dataFim && (
+            <p className="text-xs text-gray-500 mt-1">
+              Evento de 2 dias: {formData.data.split('-').reverse().join('/')} a {formData.dataFim.split('-').reverse().join('/')}
+            </p>
+          )}
         </div>
       </div>
 
       <div>
-        <label className="block text-sm text-gray-400 mb-2">Local</label>
-        <input
-          type="text"
-          value={formData.local}
-          onChange={(e) => setFormData({ ...formData, local: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
-        />
-      </div>
+        <label className="block text-sm text-gray-400 mb-2">Logo do Evento</label>
+        <div className="space-y-3">
+          {/* Upload de arquivo */}
+          <div className="border-2 border-dashed border-gray-700 rounded-lg p-4 text-center hover:border-amber-600 transition-colors">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleLogoFileChange}
+              className="hidden"
+              id="logo-upload-agenda"
+              disabled={uploadingLogo}
+            />
+            <label
+              htmlFor="logo-upload-agenda"
+              className={`cursor-pointer flex flex-col items-center gap-2 ${uploadingLogo ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {uploadingLogo ? (
+                <>
+                  <Loader2 className="w-8 h-8 text-amber-600 animate-spin" />
+                  <span className="text-gray-400 text-sm">Enviando logo...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-8 h-8 text-gray-400" />
+                  <span className="text-gray-400 text-sm">Clique para fazer upload do logo</span>
+                  <span className="text-xs text-gray-500">Máximo 10MB</span>
+                </>
+              )}
+            </label>
+          </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm text-gray-400 mb-2">Tipo</label>
-          <input
-            type="text"
-            value={formData.tipo}
-            onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
-            placeholder="Ex: Reunião, Treinamento, Evento"
-          />
-        </div>
-        <div>
-          <label className="block text-sm text-gray-400 mb-2">Ordem</label>
-          <input
-            type="number"
-            value={formData.ordem}
-            onChange={(e) => setFormData({ ...formData, ordem: e.target.value })}
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
-            placeholder="Para ordenação"
-          />
+          {/* Ou URL */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-700"></div>
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="px-2 bg-gray-900 text-gray-400">OU</span>
+            </div>
+          </div>
+
+          {/* Input de URL */}
+          <div className="space-y-2">
+            <input
+              type="url"
+              value={logoUrl}
+              onChange={(e) => {
+                const url = e.target.value.trim();
+                setLogoUrl(url);
+                setLogoPreview(url || null);
+              }}
+              onBlur={async (e) => {
+                const url = e.target.value.trim();
+                // Se for uma URL válida e não for do Blob Storage, fazer upload
+                if (url && !url.includes('blob.core.windows.net') && url.startsWith('http')) {
+                  try {
+                    setUploadingLogo(true);
+                    // Deletar logo antigo se existir e for do Blob Storage
+                    if (logoUrl && logoUrl.includes('blob.core.windows.net')) {
+                      try {
+                        await azureBlobService.deleteImage(logoUrl);
+                      } catch (deleteError) {
+                        console.warn('Erro ao deletar logo antigo:', deleteError);
+                      }
+                    }
+                    // Fazer upload da imagem da URL para o Blob Storage
+                    const uploadedLogoUrl = await azureBlobService.uploadImageFromUrl(url, 'agenda');
+                    setLogoUrl(uploadedLogoUrl);
+                    setLogoPreview(uploadedLogoUrl);
+                    toast.success('Logo salvo no Blob Storage!');
+                  } catch (error: any) {
+                    toast.error('Erro ao salvar logo: ' + (error.message || 'Erro desconhecido'));
+                  } finally {
+                    setUploadingLogo(false);
+                  }
+                }
+              }}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+              placeholder="https://exemplo.com/logo.png"
+              disabled={uploadingLogo}
+            />
+            {uploadingLogo && (
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span>Salvando no Blob Storage...</span>
+              </div>
+            )}
+          </div>
+
+          {/* Preview */}
+          {logoPreview && (
+            <div className="mt-2">
+              <img 
+                src={logoPreview} 
+                alt="Preview do logo" 
+                className="max-w-xs rounded border border-gray-700"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -4536,17 +4971,55 @@ function AgendaForm({
         </label>
       </div>
 
-      <div className="flex gap-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
+      <div className="flex flex-col sm:flex-row gap-2 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel} className="flex-1 w-full sm:w-auto touch-manipulation">
           <X className="w-4 h-4 mr-2" />
           Cancelar
         </Button>
-        <Button type="submit" className="flex-1">
+        <Button type="submit" disabled={uploadingLogo} className="flex-1 w-full sm:w-auto bg-amber-600 hover:bg-amber-700 touch-manipulation">
           <Save className="w-4 h-4 mr-2" />
           {item ? 'Salvar' : 'Criar'}
         </Button>
       </div>
     </form>
+  );
+}
+
+// Componente Modal para Criar/Editar Agenda
+function AgendaEditModal({
+  item,
+  onSave,
+  onCancel,
+}: {
+  item?: AgendaItem;
+  onSave: (data: Partial<AgendaItem>, isTwoDayEvent?: boolean, secondDayData?: Partial<AgendaItem>) => void | Promise<void>;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={onCancel}>
+      <Card className="bg-gray-900 border-gray-700 max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="p-4 sm:p-6">
+          <div className="flex justify-between items-center mb-4 sm:mb-6">
+            <h2 className="text-xl sm:text-2xl text-white font-bold">
+              {item ? 'Editar Item da Agenda' : 'Novo Item da Agenda'}
+            </h2>
+            <button
+              onClick={onCancel}
+              className="p-2 hover:bg-gray-800 rounded-full transition-colors touch-manipulation"
+              type="button"
+            >
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+
+          <AgendaForm
+            item={item}
+            onSave={onSave}
+            onCancel={onCancel}
+          />
+        </div>
+      </Card>
+    </div>
   );
 }
 
