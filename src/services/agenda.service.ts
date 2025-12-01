@@ -3,9 +3,8 @@ import { api } from './api';
 export interface AgendaItem {
   id: string;
   titulo: string;
-  descricao?: string | null;
+  descricao?: string | null; // Pode conter logo_url:URL no formato logo_url:URL
   data: string;
-  hora?: string | null;
   local?: string | null;
   tipo?: string | null;
   ativo: boolean;

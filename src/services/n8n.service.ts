@@ -79,24 +79,11 @@ async function sendN8nWebhook(workflowId: string, data: any): Promise<void> {
   const webhookUrl = `${baseUrl}/${cleanWorkflowId}`;
 
   try {
-    console.log('Enviando webhook para n8n:', {
-      url: webhookUrl,
-      workflowId: cleanWorkflowId,
-      email: data.email,
-      tipo: data.tipo,
-    });
-
-    const response = await axios.post(webhookUrl, data, {
+    await axios.post(webhookUrl, data, {
       headers: {
         'Content-Type': 'application/json',
       },
       timeout: 10000, // Aumentado para 10 segundos
-    });
-
-    console.log('Webhook enviado com sucesso:', {
-      status: response.status,
-      statusText: response.statusText,
-      email: data.email,
     });
   } catch (error: any) {
     // Log detalhado do erro

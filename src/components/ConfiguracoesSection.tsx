@@ -106,7 +106,7 @@ export function ConfiguracoesSection() {
     }
   };
 
-  const handleCreateAgenda = async (data: Partial<AgendaItem>, isTwoDayEvent?: boolean, secondDayData?: Partial<AgendaItem>) => {
+  const handleCreateAgenda = async (data: Partial<AgendaItem>, isTwoDayEvent?: boolean, secondDayData?: Partial<AgendaItem>): Promise<boolean> => {
     try {
       console.log('Criando evento:', { data, isTwoDayEvent, secondDayData });
       
@@ -151,13 +151,18 @@ export function ConfiguracoesSection() {
 
   const handleUpdateAgenda = async (id: string, data: Partial<AgendaItem>) => {
     try {
+      console.log('Atualizando agenda:', { id, data });
       const response = await agendaService.update(id, data);
+      console.log('Resposta da atualização:', response);
       if (response.success) {
         toast.success('Item da agenda atualizado com sucesso!');
         setEditingAgenda(null);
         loadAgenda();
+      } else {
+        toast.error('Erro ao atualizar item da agenda: ' + (response.message || 'Erro desconhecido'));
       }
     } catch (error: any) {
+      console.error('Erro ao atualizar item da agenda:', error);
       toast.error('Erro ao atualizar item da agenda: ' + (error.message || 'Erro desconhecido'));
     }
   };
@@ -165,13 +170,18 @@ export function ConfiguracoesSection() {
   const handleDeleteAgenda = async () => {
     if (!confirmDeleteAgenda) return;
     try {
+      console.log('Excluindo agenda:', confirmDeleteAgenda);
       const response = await agendaService.delete(confirmDeleteAgenda);
+      console.log('Resposta da exclusão:', response);
       if (response.success) {
         toast.success('Item da agenda excluído com sucesso!');
         setConfirmDeleteAgenda(null);
         loadAgenda();
+      } else {
+        toast.error('Erro ao excluir item da agenda: ' + (response.message || 'Erro desconhecido'));
       }
     } catch (error: any) {
+      console.error('Erro ao excluir item da agenda:', error);
       toast.error('Erro ao excluir item da agenda: ' + (error.message || 'Erro desconhecido'));
     }
   };
@@ -3973,24 +3983,61 @@ function GaleriaUploadModal({
   };
 
   const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(e.target.files || []) as File[];
-    if (selectedFiles.length === 0) return;
-
-    const validFiles: File[] = [];
-    for (const file of selectedFiles) {
-      if (!file.type.startsWith('image/')) {
-        toast.error(`${file.name} não é uma imagem válida`);
-        continue;
+    try {
+      const input = e.target;
+      const selectedFiles = input.files ? Array.from(input.files) : [];
+      
+      console.log('[Mobile Debug] Arquivos selecionados:', selectedFiles.length);
+      
+      if (selectedFiles.length === 0) {
+        console.warn('[Mobile Debug] Nenhum arquivo selecionado');
+        return;
       }
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error(`${file.name} excede 10MB`);
-        continue;
-      }
-      validFiles.push(file);
-    }
 
-    if (validFiles.length > 0) {
-      setFiles(validFiles);
+      const validFiles: File[] = [];
+      for (const file of selectedFiles) {
+        // Validar que é um File válido
+        if (!(file instanceof File)) {
+          console.warn('[Mobile Debug] Arquivo inválido (não é instância de File):', file);
+          toast.error('Arquivo inválido selecionado');
+          continue;
+        }
+        
+        // Validar tipo
+        if (!file.type || !file.type.startsWith('image/')) {
+          console.warn('[Mobile Debug] Arquivo não é imagem:', file.name, file.type);
+          toast.error(`${file.name} não é uma imagem válida`);
+          continue;
+        }
+        
+        // Validar tamanho
+        if (file.size > 10 * 1024 * 1024) {
+          console.warn('[Mobile Debug] Arquivo muito grande:', file.name, file.size);
+          toast.error(`${file.name} excede 10MB`);
+          continue;
+        }
+        
+        // Validar que tem nome
+        if (!file.name || file.name.trim() === '') {
+          console.warn('[Mobile Debug] Arquivo sem nome');
+          // Gerar nome temporário se não tiver
+          const tempFile = new File([file], `imagem_${Date.now()}.${file.type.split('/')[1] || 'jpg'}`, { type: file.type });
+          validFiles.push(tempFile);
+        } else {
+          validFiles.push(file);
+        }
+      }
+
+      if (validFiles.length > 0) {
+        console.log('[Mobile Debug] Arquivos válidos:', validFiles.length);
+        setFiles(validFiles);
+      } else {
+        console.warn('[Mobile Debug] Nenhum arquivo válido após validação');
+        toast.error('Nenhum arquivo válido foi selecionado');
+      }
+    } catch (error: any) {
+      console.error('[Mobile Debug] Erro ao processar arquivos:', error);
+      toast.error('Erro ao processar arquivos selecionados: ' + (error.message || 'Erro desconhecido'));
     }
   };
 
@@ -4061,21 +4108,48 @@ function GaleriaUploadModal({
       for (let index = 0; index < files.length; index++) {
         const file = files[index];
         try {
+          console.log(`[Mobile Debug] Iniciando upload da foto ${index + 1}/${files.length}:`, {
+            nome: file.name,
+            tamanho: file.size,
+            tipo: file.type,
+            album: normalizedAlbumFolder
+          });
+
           const isFirstPhoto = index === 0 && !capaFile;
-          const imagemUrl = await azureBlobService.uploadImage(file, normalizedAlbumFolder);
+          
+          // Fazer upload da imagem
+          let imagemUrl: string;
+          try {
+            imagemUrl = await azureBlobService.uploadImage(file, normalizedAlbumFolder);
+            console.log(`[Mobile Debug] Upload concluído para foto ${index + 1}, URL:`, imagemUrl);
+          } catch (uploadError: any) {
+            console.error(`[Mobile Debug] Erro no upload da foto ${index + 1}:`, uploadError);
+            // Se o erro for relacionado a URL, tentar construir manualmente
+            if (uploadError.message && uploadError.message.includes('URL')) {
+              throw new Error(`Erro ao gerar URL da imagem: ${uploadError.message}. Verifique as configurações do Azure Blob Storage.`);
+            }
+            throw uploadError;
+          }
           
           // Validar URL retornada
           if (!imagemUrl || typeof imagemUrl !== 'string' || imagemUrl.trim() === '') {
-            throw new Error(`URL da imagem ${index + 1} é inválida`);
+            throw new Error(`URL da imagem ${index + 1} é inválida ou vazia`);
+          }
+          
+          // Validar formato básico da URL sem usar new URL() (pode falhar no mobile)
+          const trimmedUrl = imagemUrl.trim();
+          if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+            throw new Error(`URL da imagem ${index + 1} não começa com http:// ou https://`);
           }
           
           const thumbnailUrl = index === 0 && (capaUrl || isFirstPhoto) ? (capaUrl || imagemUrl) : undefined;
           
           // Validar thumbnail URL se existir
           if (thumbnailUrl && (typeof thumbnailUrl !== 'string' || thumbnailUrl.trim() === '')) {
-            console.warn('Thumbnail URL inválida, usando imagem principal');
+            console.warn('[Mobile Debug] Thumbnail URL inválida, usando imagem principal');
           }
           
+          console.log(`[Mobile Debug] Criando registro no banco para foto ${index + 1}`);
           const result = await galeriaService.create(file, {
             imagem_url: imagemUrl, // Passar URL já gerada para evitar upload duplicado
             titulo: index === 0 ? titulo || undefined : undefined,
@@ -4087,9 +4161,15 @@ function GaleriaUploadModal({
             thumbnail_url: thumbnailUrl && thumbnailUrl.trim() !== '' ? thumbnailUrl : undefined,
           });
           
+          console.log(`[Mobile Debug] Foto ${index + 1} salva com sucesso`);
           uploadedItems.push(result);
         } catch (error: any) {
-          console.error(`Erro ao fazer upload da foto ${index + 1}:`, error);
+          console.error(`[Mobile Debug] Erro completo ao fazer upload da foto ${index + 1}:`, {
+            erro: error.message,
+            stack: error.stack,
+            nomeArquivo: file.name,
+            tamanhoArquivo: file.size
+          });
           toast.error(`Erro ao fazer upload da foto ${index + 1}: ${error.message || 'Erro desconhecido'}`);
           // Continuar com as próximas fotos mesmo se uma falhar
         }
@@ -4382,7 +4462,7 @@ function AgendaManagement({
   creatingAgenda: boolean;
   confirmDeleteAgenda: string | null;
   onLoadAgenda: () => void;
-  onCreateAgenda: (data: Partial<AgendaItem>) => void;
+  onCreateAgenda: (data: Partial<AgendaItem>, isTwoDayEvent?: boolean, secondDayData?: Partial<AgendaItem>) => void | Promise<boolean>;
   onUpdateAgenda: (id: string, data: Partial<AgendaItem>) => void;
   onDeleteAgenda: () => void;
   onSetEditingAgenda: (id: string | null) => void;
@@ -4629,12 +4709,23 @@ function AgendaManagement({
       {(creatingAgenda || editingAgenda) && (
         <AgendaEditModal
           item={editingAgenda ? agendaItems.find(i => i.id === editingAgenda) : undefined}
-          onSave={async (data) => {
-            if (editingAgenda) {
-              await onUpdateAgenda(editingAgenda, data);
-              onSetEditingAgenda(null);
-            } else {
-              await onCreateAgenda(data);
+          onSave={async (data, isTwoDayEvent?, secondDayData?) => {
+            try {
+              if (editingAgenda) {
+                // Na edição, ignorar isTwoDayEvent e secondDayData (não suporta eventos de 2 dias na edição)
+                await onUpdateAgenda(editingAgenda, data);
+                onSetEditingAgenda(null);
+              } else {
+                // Na criação, pode ser evento de 2 dias
+                if (isTwoDayEvent && secondDayData) {
+                  await onCreateAgenda(data, isTwoDayEvent, secondDayData);
+                } else {
+                  await onCreateAgenda(data);
+                }
+              }
+            } catch (error: any) {
+              console.error('Erro ao salvar agenda:', error);
+              toast.error('Erro ao salvar item da agenda: ' + (error.message || 'Erro desconhecido'));
             }
           }}
           onCancel={() => {
