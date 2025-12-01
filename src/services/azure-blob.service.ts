@@ -118,38 +118,57 @@ class AzureBlobService {
       });
 
       // Retornar URL pública
-      const blobUrl = blockBlobClient.url;
+      let blobUrl = blockBlobClient.url;
       
       // Validar que a URL é válida
       if (!blobUrl || typeof blobUrl !== 'string' || blobUrl.trim() === '') {
         throw new Error('URL gerada é inválida ou vazia');
       }
 
-      // Tentar validar a URL (com tratamento robusto para mobile)
-      try {
-        // Verificar se é uma URL válida antes de criar o objeto URL
-        const trimmedUrl = blobUrl.trim();
-        if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+      // Normalizar a URL (remover espaços, garantir formato correto)
+      blobUrl = blobUrl.trim();
+      
+      // Verificar formato básico da URL
+      if (!blobUrl.startsWith('http://') && !blobUrl.startsWith('https://')) {
+        // Tentar adicionar https:// se não tiver protocolo
+        if (blobUrl.includes('blob.core.windows.net')) {
+          blobUrl = 'https://' + blobUrl.replace(/^https?:\/\//, '');
+        } else {
           throw new Error('URL não começa com http:// ou https://');
         }
-        
-        // Criar objeto URL para validar (pode falhar em mobile se URL estiver malformada)
-        const urlObj = new URL(trimmedUrl);
-        if (!urlObj.protocol || !urlObj.hostname) {
-          throw new Error('URL não possui protocolo ou hostname válido');
+      }
+
+      // Validar URL de forma mais robusta para mobile
+      // Evitar usar new URL() diretamente que pode falhar em alguns casos no mobile
+      try {
+        // Verificação básica de formato
+        const urlPattern = /^https?:\/\/[^\s/$.?#].[^\s]*$/i;
+        if (!urlPattern.test(blobUrl)) {
+          throw new Error('Formato de URL inválido');
         }
-        return trimmedUrl;
+        
+        // Tentar criar objeto URL apenas se necessário (pode falhar em mobile)
+        // Mas não bloquear se a URL parece válida
+        try {
+          const urlObj = new URL(blobUrl);
+          if (!urlObj.protocol || !urlObj.hostname) {
+            throw new Error('URL não possui protocolo ou hostname válido');
+          }
+        } catch (urlConstructError: any) {
+          // Se falhar ao construir URL mas a URL parece válida, continuar mesmo assim
+          console.warn('Aviso ao validar URL com new URL():', urlConstructError.message);
+          console.warn('URL gerada (continuando mesmo assim):', blobUrl);
+          
+          // Verificar se a URL tem pelo menos formato básico válido
+          if (!blobUrl.includes('://') || !blobUrl.includes('.')) {
+            throw new Error(`URL inválida: ${urlConstructError.message || 'Formato não reconhecido'}`);
+          }
+        }
+        
+        return blobUrl;
       } catch (urlError: any) {
-        // Em caso de erro, logar mas não quebrar o fluxo se a URL parece válida
-        console.warn('Aviso ao validar URL:', urlError);
-        console.warn('URL gerada:', blobUrl);
-        
-        // Se a URL parece válida mesmo com erro de validação, retornar mesmo assim
-        if (blobUrl.startsWith('http://') || blobUrl.startsWith('https://')) {
-          console.warn('Retornando URL mesmo com aviso de validação');
-          return blobUrl.trim();
-        }
-        
+        console.error('Erro ao validar URL:', urlError);
+        console.error('URL gerada:', blobUrl);
         throw new Error(`Erro ao gerar URL da imagem: ${urlError.message || 'URL inválida'}`);
       }
     } catch (error: any) {

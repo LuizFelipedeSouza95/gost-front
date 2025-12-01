@@ -51,14 +51,37 @@ export const galeriaService = {
       data_operacao?: string;
       album?: string;
       thumbnail_url?: string;
+      imagem_url?: string; // URL já gerada (opcional)
     }
   ): Promise<{ success: boolean; data: Galeria }> => {
     try {
-      // 1. Upload da imagem principal para Azure Blob Storage
-      const imagemUrl = await azureBlobService.uploadImage(file, 'galeria');
+      let imagemUrl: string;
+      let thumbnailUrl: string;
 
-      // 2. Usar thumbnail_url fornecido ou a própria imagem como thumbnail
-      const thumbnailUrl = data.thumbnail_url || imagemUrl;
+      // Se já foi fornecido imagem_url, usar ela (caso o upload já tenha sido feito)
+      if (data.imagem_url && typeof data.imagem_url === 'string' && data.imagem_url.trim() !== '') {
+        imagemUrl = data.imagem_url.trim();
+      } else {
+        // Caso contrário, fazer upload da imagem principal para Azure Blob Storage
+        imagemUrl = await azureBlobService.uploadImage(file, 'galeria');
+      }
+
+      // Validar URL gerada
+      if (!imagemUrl || typeof imagemUrl !== 'string' || imagemUrl.trim() === '') {
+        throw new Error('URL da imagem é inválida ou vazia');
+      }
+
+      // Usar thumbnail_url fornecido ou a própria imagem como thumbnail
+      if (data.thumbnail_url && typeof data.thumbnail_url === 'string' && data.thumbnail_url.trim() !== '') {
+        thumbnailUrl = data.thumbnail_url.trim();
+      } else {
+        thumbnailUrl = imagemUrl;
+      }
+
+      // Validar thumbnail URL
+      if (!thumbnailUrl || typeof thumbnailUrl !== 'string' || thumbnailUrl.trim() === '') {
+        thumbnailUrl = imagemUrl; // Fallback para imagem principal
+      }
 
       // 3. Enviar metadados para o backend
       const payload = {

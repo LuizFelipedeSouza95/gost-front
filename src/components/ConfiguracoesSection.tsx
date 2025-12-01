@@ -4035,32 +4035,74 @@ function GaleriaUploadModal({
         ? azureBlobService.normalizeAlbumName(finalAlbum)
         : 'galeria';
       
+      // Validar que o nome do álbum normalizado não está vazio
+      if (!normalizedAlbumFolder || normalizedAlbumFolder.trim() === '') {
+        toast.error('Nome do álbum inválido após normalização');
+        return;
+      }
+      
       let capaUrl: string | undefined;
       if (capaFile) {
-        capaUrl = await azureBlobService.uploadImage(capaFile, normalizedAlbumFolder);
+        try {
+          capaUrl = await azureBlobService.uploadImage(capaFile, normalizedAlbumFolder);
+          // Validar URL retornada
+          if (!capaUrl || typeof capaUrl !== 'string' || capaUrl.trim() === '') {
+            throw new Error('URL da capa é inválida');
+          }
+        } catch (error: any) {
+          console.error('Erro ao fazer upload da capa:', error);
+          toast.error('Erro ao fazer upload da capa: ' + (error.message || 'Erro desconhecido'));
+          return;
+        }
       }
 
-      const uploadPromises = files.map(async (file: File, index: number) => {
-        const isFirstPhoto = index === 0 && !capaFile;
-        const imagemUrl = await azureBlobService.uploadImage(file, normalizedAlbumFolder);
-        
-        const thumbnailUrl = index === 0 && (capaUrl || isFirstPhoto) ? (capaUrl || imagemUrl) : undefined;
-        
-        return galeriaService.create(file, {
-          titulo: index === 0 ? titulo || undefined : undefined,
-          descricao: index === 0 ? descricao || undefined : undefined,
-          categoria: categoria || undefined,
-          is_operacao: categoria === 'Operação',
-          jogo_id: categoria === 'Treinamento' ? jogoId : undefined,
-          album: finalAlbum || undefined,
-          thumbnail_url: thumbnailUrl,
-        });
-      });
+      // Upload sequencial para evitar problemas no mobile
+      const uploadedItems: Array<{ success: boolean; data: Galeria }> = [];
+      for (let index = 0; index < files.length; index++) {
+        const file = files[index];
+        try {
+          const isFirstPhoto = index === 0 && !capaFile;
+          const imagemUrl = await azureBlobService.uploadImage(file, normalizedAlbumFolder);
+          
+          // Validar URL retornada
+          if (!imagemUrl || typeof imagemUrl !== 'string' || imagemUrl.trim() === '') {
+            throw new Error(`URL da imagem ${index + 1} é inválida`);
+          }
+          
+          const thumbnailUrl = index === 0 && (capaUrl || isFirstPhoto) ? (capaUrl || imagemUrl) : undefined;
+          
+          // Validar thumbnail URL se existir
+          if (thumbnailUrl && (typeof thumbnailUrl !== 'string' || thumbnailUrl.trim() === '')) {
+            console.warn('Thumbnail URL inválida, usando imagem principal');
+          }
+          
+          const result = await galeriaService.create(file, {
+            imagem_url: imagemUrl, // Passar URL já gerada para evitar upload duplicado
+            titulo: index === 0 ? titulo || undefined : undefined,
+            descricao: index === 0 ? descricao || undefined : undefined,
+            categoria: categoria || undefined,
+            is_operacao: categoria === 'Operação',
+            jogo_id: categoria === 'Treinamento' ? jogoId : undefined,
+            album: finalAlbum || undefined,
+            thumbnail_url: thumbnailUrl && thumbnailUrl.trim() !== '' ? thumbnailUrl : undefined,
+          });
+          
+          uploadedItems.push(result);
+        } catch (error: any) {
+          console.error(`Erro ao fazer upload da foto ${index + 1}:`, error);
+          toast.error(`Erro ao fazer upload da foto ${index + 1}: ${error.message || 'Erro desconhecido'}`);
+          // Continuar com as próximas fotos mesmo se uma falhar
+        }
+      }
 
-      await Promise.all(uploadPromises);
-      toast.success(`${files.length} foto(s) adicionada(s) com sucesso!`);
-      onSuccess();
+      if (uploadedItems.length > 0) {
+        toast.success(`${uploadedItems.length} foto(s) adicionada(s) com sucesso!`);
+        onSuccess();
+      } else {
+        toast.error('Nenhuma foto foi adicionada. Verifique os erros acima.');
+      }
     } catch (error: any) {
+      console.error('Erro geral ao adicionar fotos:', error);
       toast.error('Erro ao adicionar fotos: ' + (error.message || 'Erro desconhecido'));
     } finally {
       setUploading(false);
